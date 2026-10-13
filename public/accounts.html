@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1c211e" />
+    <meta
+      name="description"
+      content="ParkPal helps Brisbane runners find water, toilets and their next route."
+    />
+    <title>Account · ParkPal</title>
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./js/accounts.js"></script>
+  </head>
+  <body class="accounts-page">
+    <!-- The same simple header and navigation appear on every page. -->
+    <header class="topbar">
+      <a href="../index.html" class="brand">
+        <img src="./icon.svg" alt="" width="40" height="40" />
+        ParkPal
+        <span>.</span>
+      </a>
+      <span class="header-tagline">Your next stop, sorted.</span>
+    </header>
+    <main class="content-page">
+      <section id="account-panel" class="panel">
+        <div class="eyebrow">YOUR RUN. YOUR WAY.</div>
+        <h1>
+          Make it
+          <br />
+          <span>personal.</span>
+        </h1>
+        <div id="guest-account">
+          <p class="intro">
+            Create a local account to add facilities, report problems, and save your preferences.
+            You can explore and plan routes without signing in.
+          </p>
+          <button id="open-signin" class="primary full">
+            Sign in or create an account
+            <svg class="icon"><use href="./icons.svg#i-arrow" /></svg>
+          </button>
+        </div>
+        <div id="member-account" hidden>
+          <div class="profile-card">
+            <span class="avatar" id="avatar-letter">R</span>
+            <div>
+              <strong id="profile-name"></strong>
+              <small id="profile-email"></small>
+            </div>
+            <button id="logout" class="text-button">Sign out</button>
+          </div>
+          <div id="preferences" class="account-tabs" role="tablist" aria-label="Account settings">
+            <button id="preferences-tab" role="tab" aria-selected="true">Preferences</button>
+          </div>
+          <form id="preferences-form" aria-label="Preferences">
+            <p class="intro compact">
+              Apply these preferences to nearby facilities and the nearest-toilet shortcut.
+            </p>
+            <h2>Toilet preferences</h2>
+            <label class="check-row">
+              <input name="accessible" type="checkbox" />
+              <span>Wheelchair accessible</span>
+            </label>
+            <label class="check-row">
+              <input name="unisex" type="checkbox" />
+              <span>Unisex facilities</span>
+            </label>
+            <label class="check-row">
+              <input name="babychange" type="checkbox" />
+              <span>Baby change facilities</span>
+            </label>
+            <h2 class="spaced-heading">Drinking water preferences</h2>
+            <label class="check-row">
+              <input name="bottle" type="checkbox" />
+              <span>Bottle filling confirmed</span>
+            </label>
+            <p class="fine-print">
+              Council fountain records don’t confirm bottle filling. This filter shows community
+              facilities with that amenity.
+            </p>
+            <h2 class="spaced-heading">Facility condition</h2>
+            <label class="check-row">
+              <input name="hideIssues" type="checkbox" />
+              <span>Hide facilities with unresolved reports</span>
+            </label>
+            <p class="form-error" role="alert"></p>
+            <button class="primary full" type="submit">
+              Save preferences
+              <svg class="icon"><use href="./icons.svg#i-check" /></svg>
+            </button>
+          </form>
+        </div>
+        <div class="privacy-note">
+          <svg class="icon"><use href="./icons.svg#i-info" /></svg>
+          <p>
+            This is a browser-only prototype. Accounts, preferences, pins and reports stay on this
+            browser. They are not shared across devices; clearing browser data removes them. Use a
+            demo password, not one you use elsewhere.
+          </p>
+        </div>
+      </section>
+    </main>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <a href="../index.html">
+        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-pin"></use></svg>
+        <span>Explore</span>
+      </a>
+      <a href="./routes.html">
+        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-route"></use></svg>
+        <span>Routes</span>
+      </a>
+      <a href="./activity.html">
+        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-activity"></use></svg>
+        <span>Activity</span>
+      </a>
+      <a href="./accounts.html" class="active" aria-current="page">
+        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-user"></use></svg>
+        <span>Account</span>
+      </a>
+    </nav>
+    <dialog id="auth-dialog" class="modal">
+      <button class="close-dialog icon-button" aria-label="Close">
+        <svg class="icon"><use href="./icons.svg#i-close" /></svg>
+      </button>
+      <div class="eyebrow">THE PARKPAL COMMUNITY</div>
+      <h2 id="auth-title">Good to see you.</h2>
+      <p id="auth-copy">Sign in to your local account on this browser.</p>
+      <form id="auth-form">
+        <label id="name-field" hidden>
+          Your name
+          <input name="name" autocomplete="name" maxlength="60" />
+        </label>
+        <label>
+          Email
+          <input name="email" type="email" autocomplete="email" required maxlength="254" />
+        </label>
+        <label>
+          Password
+          <input
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            minlength="8"
+            maxlength="128"
+          />
+        </label>
+        <p class="form-error" role="alert"></p>
+        <button id="auth-submit" class="primary full" type="submit">Sign in</button>
+      </form>
+      <button id="toggle-auth" class="text-button auth-toggle">New here? Create an account</button>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <noscript>
+      <p class="noscript">Enable JavaScript to use ParkPal’s map and local account features.</p>
+    </noscript>
+  </body>
+</html>

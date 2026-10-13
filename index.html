@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1c211e" />
+    <meta
+      name="description"
+      content="ParkPal helps Brisbane runners find water, toilets and their next route."
+    />
+    <title>Explore · ParkPal</title>
+    <link rel="icon" href="./public/icon.svg" type="image/svg+xml" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    />
+    <script
+      defer
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script
+      defer
+      src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+    ></script>
+    <link rel="stylesheet" href="./public/style.css" />
+    <script type="module" src="./public/js/index.js"></script>
+  </head>
+  <body class="index-page">
+    <!-- The same simple header and navigation appear on every page. -->
+    <header class="topbar">
+      <a href="./index.html" class="brand">
+        <img src="./public/icon.svg" alt="" width="40" height="40" />
+        ParkPal
+        <span>.</span>
+      </a>
+      <span class="header-tagline">Your next stop, sorted.</span>
+    </header>
+    <!-- The map stays visible behind a collapsible, scrollable facility sheet. -->
+    <main class="map-layout">
+      <div id="map" aria-label="Interactive facility map"></div>
+      <p id="map-error" class="notice map-error" hidden>
+        The map could not load. Check your connection and reload.
+      </p>
+      <div id="pick-banner" class="pick-banner" hidden>
+        <span id="pick-message">Tap the map to place a pin.</span>
+        <button id="cancel-pick" class="secondary">Cancel</button>
+      </div>
+      <div class="map-top">
+        <button id="nearest-toilet" class="primary nearest-button">
+          <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-toilet"></use></svg>
+          <span>Find closest toilet</span>
+          <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-arrow"></use></svg>
+        </button>
+        <p id="location-label" class="location-pill">Brisbane preview · 5 km radius</p>
+      </div>
+      <div class="map-tools">
+        <button id="locate" class="map-button" aria-label="Find my location">
+          <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-target"></use></svg>
+        </button>
+        <button id="add-facility" class="map-button add-map-button" aria-label="Add a facility">
+          <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-plus"></use></svg>
+          <span>Add</span>
+        </button>
+      </div>
+      <section
+        id="facility-sheet"
+        class="bottom-sheet"
+        data-state="peek"
+        aria-label="Nearby facilities"
+      >
+        <button
+          id="toggle-sheet"
+          class="sheet-toggle"
+          aria-expanded="false"
+          aria-controls="sheet-content"
+        >
+          <span class="sheet-grip"></span>
+          <span class="sheet-title">
+            Nearby stops
+            <span id="sheet-action">Show list ↑</span>
+          </span>
+        </button>
+        <div class="filters" role="group" aria-label="Facility type">
+          <button class="filter active" data-filter="all" aria-pressed="true">All stops</button>
+          <button class="filter" data-filter="water" aria-pressed="false">
+            <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-water"></use></svg>
+            Water
+          </button>
+          <button class="filter" data-filter="toilet" aria-pressed="false">
+            <svg class="icon" aria-hidden="true">
+              <use href="./public/icons.svg#i-toilet"></use>
+            </svg>
+            Toilets
+          </button>
+        </div>
+        <div id="sheet-content" class="sheet-content" hidden>
+          <div class="section-heading">
+            <h1 class="sheet-heading">Your next stop</h1>
+            <label>
+              <span class="sr-only">Search radius</span>
+              <select id="radius">
+                <option value="2000">Within 2 km</option>
+                <option value="5000" selected>Within 5 km</option>
+                <option value="10000">Within 10 km</option>
+              </select>
+            </label>
+          </div>
+          <label class="search-field">
+            <svg class="icon" aria-hidden="true">
+              <use href="./public/icons.svg#i-search"></use>
+            </svg>
+            <input id="facility-search" type="search" placeholder="Search nearby facilities" />
+            <span class="sr-only">Search facility names</span>
+          </label>
+          <div class="list-caption">
+            <p id="facility-count" role="status">Finding facilities…</p>
+            <a href="./public/accounts.html#preferences" class="text-button">Preferences ↗</a>
+          </div>
+          <p class="muted">Distances are straight-line estimates.</p>
+          <p id="data-warning" class="notice" role="status" hidden></p>
+          <div id="facility-list" class="facility-list">
+            <p class="empty-state">Loading council facilities…</p>
+          </div>
+          <button id="retry-data" class="secondary full">Refresh facilities</button>
+          <div class="community-card">
+            <h2>Missing a stop?</h2>
+            <p>Leave a pin for a toilet or drinking fountain.</p>
+            <button id="add-from-list" class="text-button">Add a facility ↗</button>
+          </div>
+          <p class="fine-print">Prototype: contributions and reports stay on this browser.</p>
+        </div>
+      </section>
+    </main>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <a href="./index.html" class="active" aria-current="page">
+        <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-pin"></use></svg>
+        <span>Explore</span>
+      </a>
+      <a href="./public/routes.html">
+        <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-route"></use></svg>
+        <span>Routes</span>
+      </a>
+      <a href="./public/activity.html">
+        <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-activity"></use></svg>
+        <span>Activity</span>
+      </a>
+      <a href="./public/accounts.html">
+        <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-user"></use></svg>
+        <span>Account</span>
+      </a>
+    </nav>
+    <dialog id="facility-dialog" class="modal detail-modal">
+      <button class="close-dialog icon-button" aria-label="Close">
+        <svg class="icon"><use href="./public/icons.svg#i-close" /></svg>
+      </button>
+      <div id="facility-detail"></div>
+    </dialog>
+    <dialog id="report-dialog" class="modal">
+      <button class="close-dialog icon-button" aria-label="Close">
+        <svg class="icon"><use href="./public/icons.svg#i-close" /></svg>
+      </button>
+      <div class="eyebrow">A HEADS-UP GOES A LONG WAY</div>
+      <h2>Report a problem</h2>
+      <p id="report-facility-name"></p>
+      <form id="report-form">
+        <label>
+          What’s the issue?
+          <select name="category">
+            <option>Broken</option>
+            <option>Dirty</option>
+            <option>Unavailable</option>
+            <option>Under construction</option>
+            <option>Missing</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <label>
+          More details
+          <span class="optional">optional</span>
+          <textarea
+            name="description"
+            rows="3"
+            maxlength="1000"
+            placeholder="Let other runners know what to expect."
+          ></textarea>
+        </label>
+        <p class="form-error" role="alert"></p>
+        <button class="primary full" type="submit">Submit report</button>
+      </form>
+    </dialog>
+    <dialog id="add-dialog" class="modal">
+      <button class="close-dialog icon-button" aria-label="Close">
+        <svg class="icon"><use href="./public/icons.svg#i-close" /></svg>
+      </button>
+      <div class="eyebrow">LEAVE A PIN. HELP A RUNNER.</div>
+      <h2>Add a facility</h2>
+      <form id="add-form">
+        <label>
+          Facility type
+          <select name="type">
+            <option value="water">Drinking water</option>
+            <option value="toilet">Public toilet</option>
+          </select>
+        </label>
+        <label>
+          Facility name
+          <input
+            name="name"
+            placeholder="e.g. Riverside drinking fountain"
+            required
+            maxlength="160"
+          />
+        </label>
+        <label>
+          Location
+          <span id="pin-description" class="pin-description">Choose a location below.</span>
+        </label>
+        <div class="button-row">
+          <button id="add-current-location" type="button" class="secondary small">
+            <svg class="icon"><use href="./public/icons.svg#i-target" /></svg>
+            My location
+          </button>
+          <button id="add-map-location" type="button" class="secondary small">
+            <svg class="icon"><use href="./public/icons.svg#i-pin" /></svg>
+            Place a pin
+          </button>
+        </div>
+        <fieldset>
+          <legend>Amenities</legend>
+          <div id="add-amenities" class="amenity-options"></div>
+        </fieldset>
+        <label>
+          Opening hours
+          <span class="optional">optional</span>
+          <input name="hours" placeholder="e.g. Open 24 hours" maxlength="160" />
+        </label>
+        <label>
+          Description
+          <span class="optional">optional</span>
+          <textarea
+            name="description"
+            rows="2"
+            maxlength="1000"
+            placeholder="Anything that helps someone find it."
+          ></textarea>
+        </label>
+        <p class="fine-print">Appears immediately on this browser’s map.</p>
+        <p class="form-error" role="alert"></p>
+        <button class="primary full" type="submit">
+          Share facility
+          <svg class="icon"><use href="./public/icons.svg#i-plus" /></svg>
+        </button>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <noscript>
+      <p class="noscript">Enable JavaScript to use ParkPal’s map and local account features.</p>
+    </noscript>
+  </body>
+</html>

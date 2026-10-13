@@ -1,0 +1,17 @@
+[
+  {
+    "id": "d34e4cc2-84a9-435a-899e-f14b1a638d44",
+    "name": "Elver Galarga",
+    "email": "elvergalarga@gmail.com",
+    "salt": "2e7b4580679225099e1c954043ecddb9",
+    "hash": "d99185855e5bfddda6b0f75908fe1a292d4b2b63f73cca5274b99b53314052260c12f71b5c5695ffa2d413bc5cac404dc962071fe225234560ecddf95775931b",
+    "preferences": {
+      "accessible": true,
+      "unisex": false,
+      "babychange": false,
+      "bottle": false,
+      "hideIssues": false
+    },
+    "createdAt": "2026-10-13T03:44:19.110Z"
+  }
+]
