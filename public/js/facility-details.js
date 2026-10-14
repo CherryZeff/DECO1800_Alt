@@ -12,13 +12,24 @@ import {
 import { getReports, requireAccount, addReport, resolveReport } from './storage.js';
 import { reportsHTML } from './reports.js';
 import { addRouteStop, readRoute, saveRoute } from './route-state.js';
+import { photoURL } from './photos.js';
 
 export function setupFacilityDetails(onReportsChanged, onAddStop) {
   let selectedFacility;
+  let reportRequest = 0;
   const returnPage = location.pathname.endsWith('routes.html') ? 'routes.html' : 'index.html';
 
-  function renderReports() {
-    const reports = getReports(selectedFacility.id);
+  async function renderReports() {
+    const request = ++reportRequest;
+    find('#detail-timeline').textContent = 'Loading reports…';
+    let reports;
+    try {
+      reports = await getReports(selectedFacility.id);
+    } catch (error) {
+      if (request === reportRequest) find('#detail-timeline').textContent = error.message;
+      return;
+    }
+    if (request !== reportRequest) return;
     // Keep older unresolved problems reachable, even after they leave the last ten.
     const recent = reports.slice(0, 10);
     const olderUnresolved = reports.slice(10).filter((report) => !report.resolvedAt);
@@ -39,7 +50,14 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
       <h3>Opening hours</h3><p>${escapeHTML(facility.hours)}</p>
       ${facility.restrictions?.length ? `<p class="notice">${facility.restrictions.map(escapeHTML).join(' · ')}</p>` : ''}
       <p class="detail-description">${escapeHTML(facility.description)}</p>
-      <p class="fine-print">${facility.source === 'Community' ? 'Local community contribution · unverified' : 'Source: Brisbane City Council'}</p>
+      <div class="facility-photos">${(facility.photos || [])
+        .filter((filename) => photoURL(filename))
+        .map(
+          (filename) =>
+            `<a href="${photoURL(filename)}" target="_blank" rel="noopener"><img src="${photoURL(filename)}" alt="Photo of ${escapeHTML(facility.name)}" loading="lazy"></a>`,
+        )
+        .join('')}</div>
+      <p class="fine-print">${facility.source === 'Community' ? 'Community contribution · unverified' : 'Source: Brisbane City Council'}</p>
       <div class="button-row">
         <button id="detail-add-stop" class="primary">${icon('plus')}Add to route</button>
         <button id="detail-directions" class="secondary">${icon('route')}Route here</button>
@@ -47,7 +65,7 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
       <button id="detail-report" class="text-button">Report a problem ↗</button>
       <section class="detail-activity">
         <h3>Facility reports</h3>
-        <p class="fine-print">Last 10 reports, plus older unresolved problems. Saved on this browser.</p>
+        <p class="fine-print">Last 10 reports, plus older unresolved problems. Shared with all runners.</p>
         <div id="detail-timeline" class="timeline"></div>
       </section>`;
     renderReports();
@@ -67,7 +85,9 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
       route.stops = [facility];
       route.roundTrip = false;
       saveRoute(route);
-      location.href = pageURL('routes.html?build=1');
+      location.href = pageURL(
+        `routes.html?build=1${document.body.classList.contains('nearest-mode') ? '&nearest=1' : ''}`,
+      );
     };
     find('#detail-report').onclick = () => {
       if (!requireAccount(returnPage)) return;
@@ -80,24 +100,27 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
     if (!find('#facility-dialog').open) find('#facility-dialog').showModal();
   }
 
-  handleForm(find('#report-form'), (form) => {
-    addReport(selectedFacility, form.get('category'), form.get('description').trim());
+  handleForm(find('#report-form'), async (form) => {
+    await addReport(selectedFacility, form.get('category'), form.get('description').trim());
     find('#report-dialog').close();
-    onReportsChanged();
+    await onReportsChanged();
     open(selectedFacility);
-    notify('Report saved on this browser.');
+    notify('Report saved and shared.');
   });
 
-  find('#facility-detail').addEventListener('click', (event) => {
+  find('#facility-detail').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-resolve]');
     if (!button || !requireAccount(returnPage)) return;
     try {
-      resolveReport(button.dataset.resolve);
-      onReportsChanged();
-      renderReports();
+      button.disabled = true;
+      await resolveReport(button.dataset.resolve);
+      await onReportsChanged();
+      await renderReports();
       notify('Problem marked as resolved.');
     } catch (error) {
       notify(error.message);
+    } finally {
+      button.disabled = false;
     }
   });
 

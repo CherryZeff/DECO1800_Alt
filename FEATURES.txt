@@ -1,0 +1,108 @@
+PARKPAL — CURRENT FEATURE REPORT
+Updated: 13 October 2026
+Maintenance: update this file whenever features or storage behaviour change.
+
+PURPOSE AND STRUCTURE
+ParkPal helps runners locate public toilets and drinking water around Brisbane.
+Plain HTML, CSS and JavaScript; Leaflet maps; no frontend build step.
+Root index.html is the entry point. Separate Routes, Activity and Accounts pages
+live under public/. A shared bottom navigation links the pages and includes a
+circular orange toilet-icon shortcut. Black, orange and white responsive styling,
+a running-person logo, readable text and large controls support phone and desktop.
+
+HOME MAP
+- Requests GPS location, with a clearly labelled Brisbane preview if unavailable.
+- Queries Brisbane City Council public-toilets-in-brisbane and
+  park-drinking-fountain-tap-locations datasets within the selected radius.
+- Fetches all matching council pages, then adds user submissions read from JSON.
+- Reads submissions and report counts fresh on every facility refresh.
+- Council responses are cached for five minutes; submissions are not cached.
+- Shows clustered facility markers, open-report indicators, facility details,
+  amenity tags, descriptions, supplied opening hours and uploaded photos.
+- Filters toilets/water/all, searches names/addresses, and applies preferences.
+- Expandable bottom sheet works by tap or handle swipe and lists nearby stops
+  in distance order, with a Show more control for larger result sets.
+- Location and retry controls refresh the area. Panning alone does not reload it.
+
+CLOSEST TOILETS
+- Circular toilet action in the bottom navigation works from every page.
+- Obtains the user's location and shows up to three matching toilets within the
+  saved radius, ordered by straight-line distance, including community toilets.
+- Hides other facility markers and normal exploration controls during selection.
+- Displays individual toilet pins and a selectable list. Route here creates a
+  walking route to the selected toilet; it does not automatically choose one.
+- Top-left back button restores exploration. Route page links back to choices.
+- Respects toilet preferences and optionally excludes unresolved problems.
+- Shows fewer than three when fewer qualify. Reports GPS/data failures clearly.
+- Does not calculate the shortest walking distance to every possible toilet or
+  verify that a facility is currently open.
+
+ROUTES
+- Available without an account.
+- Start from GPS or a manually chosen map location.
+- Add up to ten facilities or manually placed stops, reorder or remove them,
+  clear the route, and optionally return to the start.
+- Request walking routes from the OSRM/FOSSGIS foot service.
+- Draw the returned route line on Leaflet; display distance, estimated walking
+  time and turn instructions, plus an offset-pin warning when applicable.
+- Route errors are displayed without substituting an invented path.
+- Route draft persists within the current browser tab across page navigation.
+- Route planning only: no live navigation, run recording or background tracking.
+
+ACCOUNTS AND PREFERENCES
+- Register, sign in and sign out through the Node backend.
+- Passwords use salted scrypt hashes. Session cookies are HttpOnly and SameSite.
+- Sessions last up to seven days but end on server restart.
+- Guests can explore and plan routes; contributing and resolving require login.
+- Toilet options: wheelchair access, unisex facilities and baby changing.
+- Water option: bottle filling. Optional hiding of facilities with open reports.
+- Account-page radius slider: 1–10 km in 1 km steps, default 5 km.
+- Saved account radius applies to facility searches and closest-toilet selection.
+- Guest radius remains browser-local; account radius is stored in accounts.json.
+- No email verification, password recovery or account administration interface.
+
+FACILITY SUBMISSIONS AND PHOTOS
+- Signed-in users select toilet or drinking water, enter a name and amenities,
+  and optionally supply a description and opening hours.
+- Place a map pin or use current GPS position.
+- Add up to three optional JPEG, PNG or WebP photos, at most 2 MB each.
+- Preview photos before submission; server validates type/signature/size limits.
+- Server saves photos with generated filenames under data/photos/ and saves
+  references with the facility in submissions.json.
+- Photos display in facility details and can be opened at full size.
+- Successful submissions are shared immediately without moderation.
+- Returning to the map reloads persisted submissions after council data.
+- A newly submitted distant pin recentres the saved area so it can be revisited.
+- Preference filters and radius still govern normal visibility.
+
+PROBLEM REPORTS AND ACTIVITY
+- Categories: Broken, Dirty, Unavailable, Under construction, Missing and Other.
+- Optional report description; reporter and creation time stored on the server.
+- Report creation writes reports.json before the UI confirms success.
+- Facility markers/list indicate unresolved problems.
+- Facility timeline shows ten latest reports plus older unresolved problems.
+- Activity page shows ten latest shared reports and includes refresh.
+- Signed-in users can mark problems resolved. Resolution details persist in JSON.
+
+SHARED FILES AND RECOVERY
+- data/accounts.json: accounts and preferences.
+- data/submissions.json: submitted facilities and photo references.
+- data/reports.json: problems and resolution information.
+- data/photos/: uploaded photos, publicly readable through /photos/ URLs.
+- Node serves an allowlist of app assets; private JSON is not exposed as static
+  files. Existing project data is preserved. Tests use temporary storage.
+- Optional account-page import recovers earlier browser-local submissions and
+  reports for the same email. Repeating an import does not duplicate records.
+- Export/import JSON supports recovery when the old Live Server origin differs.
+  Passwords are not exported; old browser records are not deleted.
+- Browser-only accounts and server accounts are separate. See README for recovery.
+
+RUNNING AND LIMITATIONS
+Run node server.js and open http://localhost:3000. Node 22+; no npm dependencies
+needed by the app. Live Server cannot provide shared JSON/photo writes.
+UQ Zone needs a Node process, persistent writable data storage and an appropriate
+web proxy/port configuration. Phone GPS requires HTTPS (localhost is an exception).
+External map/council/routing services need internet access and may fail or limit
+requests. Community facilities are unverified. JSON storage supports one Node
+process; there is no multi-process database, moderation, edit/delete interface,
+offline map, password reset, automatic backup or deployment automation.

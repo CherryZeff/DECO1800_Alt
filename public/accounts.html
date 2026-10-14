@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#1c211e" />
     <meta
       name="description"
@@ -32,10 +35,41 @@
           <br />
           <span>personal.</span>
         </h1>
+        <section
+          id="radius-settings"
+          class="radius-settings"
+          aria-labelledby="radius-heading"
+        >
+          <h2 id="radius-heading">Map radius</h2>
+          <p>Choose how far around your location ParkPal loads facilities.</p>
+          <form id="radius-form">
+            <label for="account-radius"
+              >Search within
+              <output id="radius-value" for="account-radius"
+                >5 km</output
+              ></label
+            >
+            <input
+              id="account-radius"
+              name="radius"
+              type="range"
+              min="1"
+              max="10"
+              step="1"
+              value="5"
+            />
+            <div class="range-labels"><span>1 km</span><span>10 km</span></div>
+            <p id="radius-storage-note" class="fine-print"></p>
+            <p class="form-error" role="alert"></p>
+            <button type="submit" class="secondary full">
+              Save map radius
+            </button>
+          </form>
+        </section>
         <div id="guest-account">
           <p class="intro">
-            Create a local account to add facilities, report problems, and save your preferences.
-            You can explore and plan routes without signing in.
+            Create an account to add facilities, report problems, and save your
+            preferences. You can explore and plan routes without signing in.
           </p>
           <button id="open-signin" class="primary full">
             Sign in or create an account
@@ -51,12 +85,20 @@
             </div>
             <button id="logout" class="text-button">Sign out</button>
           </div>
-          <div id="preferences" class="account-tabs" role="tablist" aria-label="Account settings">
-            <button id="preferences-tab" role="tab" aria-selected="true">Preferences</button>
+          <div
+            id="preferences"
+            class="account-tabs"
+            role="tablist"
+            aria-label="Account settings"
+          >
+            <button id="preferences-tab" role="tab" aria-selected="true">
+              Preferences
+            </button>
           </div>
           <form id="preferences-form" aria-label="Preferences">
             <p class="intro compact">
-              Apply these preferences to nearby facilities and the nearest-toilet shortcut.
+              Apply these preferences to nearby facilities and the
+              nearest-toilet shortcut.
             </p>
             <h2>Toilet preferences</h2>
             <label class="check-row">
@@ -77,8 +119,8 @@
               <span>Bottle filling confirmed</span>
             </label>
             <p class="fine-print">
-              Council fountain records don’t confirm bottle filling. This filter shows community
-              facilities with that amenity.
+              Council fountain records don’t confirm bottle filling. This filter
+              shows community facilities with that amenity.
             </p>
             <h2 class="spaced-heading">Facility condition</h2>
             <label class="check-row">
@@ -92,31 +134,65 @@
             </button>
           </form>
         </div>
+        <section id="browser-import" class="community-card" hidden>
+          <h2>Recover earlier contributions</h2>
+          <p>
+            Import this browser’s old pins and reports for the email you signed
+            in with. Existing files and browser records are kept. Imported
+            records use your current account.
+          </p>
+          <button id="import-browser" class="secondary full">
+            Import browser contributions
+          </button>
+          <p id="import-status" role="status"></p>
+          <label for="import-file">Or import an earlier browser export</label>
+          <input id="import-file" type="file" accept="application/json,.json" />
+        </section>
+        <button id="export-browser" class="text-button" hidden>
+          Download earlier browser contributions
+        </button>
         <div class="privacy-note">
           <svg class="icon"><use href="./icons.svg#i-info" /></svg>
           <p>
-            This is a browser-only prototype. Accounts, preferences, pins and reports stay on this
-            browser. They are not shared across devices; clearing browser data removes them. Use a
-            demo password, not one you use elsewhere.
+            Accounts, contributions, reports and photos are saved on the ParkPal
+            server. Your running start is kept in this tab, not in your account.
+            Photos and contributed facility details are visible to other
+            runners.
           </p>
         </div>
       </section>
     </main>
     <nav class="bottom-nav" aria-label="Main navigation">
       <a href="../index.html">
-        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-pin"></use></svg>
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-pin"></use>
+        </svg>
         <span>Explore</span>
       </a>
       <a href="./routes.html">
-        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-route"></use></svg>
-        <span>Routes</span>
-      </a>
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-route"></use>
+        </svg>
+        <span>Routes</span> </a
+      ><a
+        href="../index.html?toilets=1"
+        class="toilet-shortcut"
+        aria-label="Find the three closest toilets"
+        ><span class="toilet-circle"
+          ><svg class="icon" aria-hidden="true">
+            <use href="./icons.svg#i-wc"></use></svg></span
+        ><span>Toilets</span></a
+      >
       <a href="./activity.html">
-        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-activity"></use></svg>
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-activity"></use>
+        </svg>
         <span>Activity</span>
       </a>
       <a href="./accounts.html" class="active" aria-current="page">
-        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-user"></use></svg>
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-user"></use>
+        </svg>
         <span>Account</span>
       </a>
     </nav>
@@ -126,7 +202,7 @@
       </button>
       <div class="eyebrow">THE PARKPAL COMMUNITY</div>
       <h2 id="auth-title">Good to see you.</h2>
-      <p id="auth-copy">Sign in to your local account on this browser.</p>
+      <p id="auth-copy">Sign in to contribute to ParkPal.</p>
       <form id="auth-form">
         <label id="name-field" hidden>
           Your name
@@ -134,7 +210,13 @@
         </label>
         <label>
           Email
-          <input name="email" type="email" autocomplete="email" required maxlength="254" />
+          <input
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+            maxlength="254"
+          />
         </label>
         <label>
           Password
@@ -148,13 +230,19 @@
           />
         </label>
         <p class="form-error" role="alert"></p>
-        <button id="auth-submit" class="primary full" type="submit">Sign in</button>
+        <button id="auth-submit" class="primary full" type="submit">
+          Sign in
+        </button>
       </form>
-      <button id="toggle-auth" class="text-button auth-toggle">New here? Create an account</button>
+      <button id="toggle-auth" class="text-button auth-toggle">
+        New here? Create an account
+      </button>
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
     <noscript>
-      <p class="noscript">Enable JavaScript to use ParkPal’s map and local account features.</p>
+      <p class="noscript">
+        Enable JavaScript to use ParkPal’s map and account features.
+      </p>
     </noscript>
   </body>
 </html>

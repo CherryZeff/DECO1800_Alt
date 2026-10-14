@@ -17,7 +17,13 @@ export function pageURL(page) {
 
 // Escape contributed text before inserting it into an HTML template.
 export function escapeHTML(value) {
-  const characters = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  const characters = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
   return String(value ?? '').replace(/[&<>"']/g, (character) => characters[character]);
 }
 
@@ -71,7 +77,11 @@ export function getLocation() {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (location) => resolve({ lat: location.coords.latitude, lng: location.coords.longitude }),
+      (location) =>
+        resolve({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        }),
       (error) =>
         reject(
           new Error(

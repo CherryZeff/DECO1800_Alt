@@ -69,7 +69,10 @@ let cookie, facilityId, reportId;
 async function request(path, method = 'GET', body, authenticated = false) {
   const response = await originalFetch(`${base}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', ...(authenticated ? { Cookie: cookie } : {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authenticated ? { Cookie: cookie } : {}),
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const result = await response.json();
@@ -115,13 +118,18 @@ test('normalization preserves unknown amenities and coordinate validity', () => 
   assert.ok(distance({ lat: 0, lng: 0 }, { lat: 0, lng: 1 }) > 111000);
 });
 test('guest can explore, queries are radius-filtered, and all council pages are loaded', async () => {
-  const { response, result } = await request('/api/facilities?lat=-27.47&lng=153.025&radius=5000');
+  const { response, result } = await request(
+    '/api/facilities?lat=-27.47&lng=153.025&radius=5000',
+  );
   assert.equal(response.status, 200);
   assert.equal(result.facilities.length, 102);
   assert.ok(externalCalls.every((url) => url.searchParams.get('where').includes('5000m')));
   assert.ok(externalCalls.some((url) => url.searchParams.get('offset') === '100'));
   assert.equal((await request('/api/facilities?lat=no&lng=153')).response.status, 400);
-  assert.equal((await request('/api/facilities?lat=0&lng=0&radius=99999')).response.status, 400);
+  assert.equal(
+    (await request('/api/facilities?lat=0&lng=0&radius=99999')).response.status,
+    400,
+  );
 });
 test('private files and guest mutations are blocked', async () => {
   for (const path of ['/data/accounts.json', '/server.js', '/%2e%2e/data/accounts.json'])
@@ -229,13 +237,19 @@ test('reports can be created, inspected and resolved idempotently', async () => 
   const again = await request(`/api/reports/${reportId}/resolve`, 'POST', {}, true);
   assert.equal(again.result.report.resolvedAt, resolved.result.report.resolvedAt);
   assert.equal(
-    (await request(`/api/reports?facility=${encodeURIComponent(facilityId)}`)).result.unresolved
-      .length,
+    (await request(`/api/reports?facility=${encodeURIComponent(facilityId)}`)).result
+      .unresolved.length,
     0,
   );
   assert.equal(
-    (await request('/api/reports', 'POST', { facilityId: 'made-up', category: 'Broken' }, true))
-      .response.status,
+    (
+      await request(
+        '/api/reports',
+        'POST',
+        { facilityId: 'made-up', category: 'Broken' },
+        true,
+      )
+    ).response.status,
     404,
   );
 });
@@ -247,7 +261,8 @@ test('timeline returns ten latest reports and retains older unresolved problems'
       { facilityId, category: 'Dirty', description: `Problem ${i}` },
       true,
     );
-  const result = (await request(`/api/reports?facility=${encodeURIComponent(facilityId)}`)).result;
+  const result = (await request(`/api/reports?facility=${encodeURIComponent(facilityId)}`))
+    .result;
   assert.equal(result.reports.length, 10);
   assert.equal(result.unresolved.length, 12);
   assert.equal(result.reports[0].description, 'Problem 11');
@@ -296,4 +311,124 @@ test('cross-origin writes are rejected and logout invalidates the session', asyn
     password: 'test-password-123',
   });
   assert.equal(login.response.status, 200);
+});
+
+test('radius defaults to 5 km and persists valid slider values', async () => {
+  const login = await request('/api/login', 'POST', {
+    email: 'runner@example.com',
+    password: 'test-password-123',
+  });
+  cookie = login.response.headers.get('set-cookie').split(';')[0];
+  assert.equal(login.result.user.preferences.radius, 5000);
+  const changed = await request(
+    '/api/preferences',
+    'PUT',
+    { radius: 7000, accessible: true },
+    true,
+  );
+  assert.equal(changed.result.user.preferences.radius, 7000);
+  const saved = JSON.parse(readFileSync(join(directory, 'accounts.json')))[0];
+  assert.equal(saved.preferences.radius, 7000);
+  assert.equal(
+    (await request('/api/me', 'GET', undefined, true)).result.user.preferences.radius,
+    7000,
+  );
+  for (const radius of [0, 11000, 5500, '7000']) {
+    assert.equal(
+      (await request('/api/preferences', 'PUT', { radius }, true)).response.status,
+      400,
+    );
+  }
+  assert.equal(
+    (await request('/api/facilities?lat=-27.47&lng=153.025&radius=7000')).response.status,
+    200,
+  );
+  assert.ok(externalCalls.some((url) => url.searchParams.get('where').includes('7000m')));
+});
+
+test('photo submissions persist files, reload after council records, and reject invalid uploads', async () => {
+  const png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==';
+  const input = {
+    name: 'Photo toilet',
+    type: 'toilet',
+    lat: -27.47,
+    lng: 153.025,
+    photos: [`data:image/png;base64,${png}`],
+  };
+  const created = await request('/api/submissions', 'POST', input, true);
+  assert.equal(created.response.status, 201);
+  const photo = created.result.facility.photos[0];
+  assert.match(photo, /^[a-f0-9-]{36}\.png$/);
+  assert.deepEqual(readFileSync(join(directory, 'photos', photo)), Buffer.from(png, 'base64'));
+  const image = await originalFetch(`${base}/photos/${photo}`);
+  assert.equal(image.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await image.arrayBuffer()), Buffer.from(png, 'base64'));
+  for (let visit = 0; visit < 2; visit++) {
+    const nearby = (await request('/api/facilities?lat=-27.47&lng=153.025&radius=5000')).result
+      .facilities;
+    assert.deepEqual(nearby.find((row) => row.id === created.result.facility.id).photos, [
+      photo,
+    ]);
+    assert.equal(nearby.at(-1).id, created.result.facility.id);
+    assert.equal(nearby[0].source, 'Brisbane City Council');
+  }
+  const before = readFileSync(join(directory, 'submissions.json'), 'utf8');
+  for (const photos of [
+    ['data:image/png;base64,aGVsbG8='],
+    Array(4).fill(input.photos[0]),
+    ['data:image/svg+xml;base64,PHN2Zz4='],
+  ]) {
+    assert.equal(
+      (await request('/api/submissions', 'POST', { ...input, photos }, true)).response.status,
+      400,
+    );
+  }
+  const oversized = `data:image/png;base64,${Buffer.alloc(2 * 1024 * 1024 + 1).toString('base64')}`;
+  assert.equal(
+    (await request('/api/submissions', 'POST', { ...input, photos: [oversized] }, true))
+      .response.status,
+    413,
+  );
+  assert.equal(readFileSync(join(directory, 'submissions.json'), 'utf8'), before);
+  assert.equal((await request(`/data/photos/${photo}`)).response.status, 404);
+});
+
+test('browser contribution import is idempotent and reports persist on disk', async () => {
+  const input = {
+    name: 'Imported water',
+    type: 'water',
+    lat: -27.47,
+    lng: 153.025,
+    clientId: 'community:11111111-1111-4111-8111-111111111111',
+  };
+  const first = await request('/api/submissions', 'POST', input, true);
+  const repeated = await request('/api/submissions', 'POST', input, true);
+  assert.equal(first.result.facility.id, repeated.result.facility.id);
+  const report = {
+    facilityId: first.result.facility.id,
+    category: 'Dirty',
+    description: 'Imported report',
+    clientId: '22222222-2222-4222-8222-222222222222',
+  };
+  const created = await request('/api/reports', 'POST', report, true);
+  const retried = await request('/api/reports', 'POST', report, true);
+  assert.equal(created.result.report.id, retried.result.report.id);
+  const records = JSON.parse(readFileSync(join(directory, 'reports.json')));
+  assert.equal(records.filter((row) => row.clientId === report.clientId).length, 1);
+  const resolved = await request(
+    `/api/reports/${created.result.report.id}/resolve`,
+    'POST',
+    {},
+    true,
+  );
+  const saved = JSON.parse(readFileSync(join(directory, 'reports.json'))).find(
+    (row) => row.id === created.result.report.id,
+  );
+  assert.equal(saved.resolvedAt, resolved.result.report.resolvedAt);
+  assert.equal(
+    (await request(`/api/reports?facility=${encodeURIComponent(report.facilityId)}`)).result
+      .reports[0].resolvedAt,
+    saved.resolvedAt,
+  );
 });

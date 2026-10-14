@@ -33,17 +33,19 @@ export class FacilityMap {
         : L.layerGroup()
     ).addTo(this.map);
     this.stopLayer = L.layerGroup().addTo(this.map);
+    this.selectionLayer = L.layerGroup().addTo(this.map);
     this.onFacilityClick = onFacilityClick;
     this.map.on('click', (event) => onMapClick(event.latlng));
   }
 
-  showFacilities(facilities) {
+  showFacilities(facilities, clustered = true) {
     if (!this.map) return;
     this.facilityLayer.clearLayers();
-    for (const facility of facilities) this.addFacility(facility);
+    this.selectionLayer.clearLayers();
+    for (const facility of facilities) this.addFacility(facility, clustered);
   }
 
-  addFacility(facility) {
+  addFacility(facility, clustered = true) {
     if (!this.map) return;
     const communityClass = facility.source === 'Community' ? 'community' : '';
     const marker = L.marker([facility.lat, facility.lng], {
@@ -56,7 +58,23 @@ export class FacilityMap {
       }),
     });
     marker.on('click', () => this.onFacilityClick(facility));
-    marker.addTo(this.facilityLayer);
+    marker.addTo(clustered ? this.facilityLayer : this.selectionLayer);
+  }
+
+  frameChoices(facilities, origin) {
+    if (!this.map || !facilities.length) return;
+    const points = [origin, ...facilities].map((point) => [point.lat, point.lng]);
+    this.map.fitBounds(L.latLngBounds(points), {
+      paddingTopLeft: [50, 90],
+      paddingBottomRight: [50, 180],
+      maxZoom: 17,
+    });
+  }
+
+  showRadius(visible) {
+    if (!this.map || !this.radiusCircle) return;
+    if (visible) this.radiusCircle.addTo(this.map);
+    else this.map.removeLayer(this.radiusCircle);
   }
 
   setCenter(point, radius, label) {
@@ -65,7 +83,11 @@ export class FacilityMap {
     if (this.radiusCircle) this.map.removeLayer(this.radiusCircle);
     this.originMarker = L.marker([point.lat, point.lng], {
       title: label,
-      icon: L.divIcon({ className: 'origin-marker', iconSize: [20, 20], iconAnchor: [10, 10] }),
+      icon: L.divIcon({
+        className: 'origin-marker',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      }),
     })
       .addTo(this.map)
       .bindTooltip(label);
@@ -109,7 +131,11 @@ export class FacilityMap {
     this.routeLayer = L.geoJSON(route.geometry, {
       style: { color: '#ef5c27', weight: 6, opacity: 0.9 },
     }).addTo(this.map);
-    this.map.fitBounds(this.routeLayer.getBounds(), { padding: [45, 45] });
+    // Leave room above the route for the back button and zoom controls.
+    this.map.fitBounds(this.routeLayer.getBounds(), {
+      paddingTopLeft: [45, 90],
+      paddingBottomRight: [45, 45],
+    });
   }
 
   setPicking(enabled) {

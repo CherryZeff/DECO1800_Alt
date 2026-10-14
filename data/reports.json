@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "id": "e1af9c6b-abc4-4a74-9100-9b81fd5190ac",
+    "facilityId": "toilet:55155",
+    "facilityName": "University of Queensland",
+    "facilityType": "toilet",
+    "lat": -27.4943513,
+    "lng": 153.0065643,
+    "category": "Broken",
+    "description": "Not working",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-13T07:26:21.703Z",
+    "resolvedAt": "2026-10-13T07:33:45.820Z",
+    "resolvedBy": "Elver Gon"
+  },
+  {
+    "id": "cf78cd0f-3ef3-4b23-8a4c-a44f77b7f373",
+    "facilityId": "community:07e44db7-f500-4077-b105-11993b89202c",
+    "facilityName": "Soccer Court",
+    "facilityType": "toilet",
+    "lat": -27.49773207371014,
+    "lng": 153.01503539085388,
+    "category": "Dirty",
+    "description": "there's shit on the floor",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-13T07:34:10.004Z",
+    "resolvedAt": "2026-10-13T07:34:18.643Z",
+    "resolvedBy": "Elver Gon"
+  }
+]

@@ -47,4 +47,7 @@
     <circle cx="12" cy="12" r="9" />
     <path d="M12 11v6m0-10v1" />
   </symbol>
+  <symbol id="i-wc" viewBox="0 0 24 24">
+    <path d="M4 3h5v8H4zM4 11h16v2a7 7 0 0 1-7 7H9v-4a5 5 0 0 1-5-5ZM9 20v2h8v-3M9 9h10"/>
+  </symbol>
 </svg>

@@ -1,0 +1,450 @@
+PARKPAL: INITIALIZE A UQCLOUD ZONE
+Checked online: 13 October 2026
+
+This is a deployment guide for this repository, not an installation script.
+Follow one section at a time. Commands are labelled by where to run them.
+No Zone has been created or changed as part of writing this file.
+
+Assumption: a dedicated UQcloud webproject Zone (2025 or newer). If your course
+already assigned a Zone, use that allocation and skip creation. Confirm its
+image and administrator access before changing its services. The commands below
+are adaptations for ParkPal; they have not been tested on your allocated Zone.
+
+Replace these placeholders everywhere before running commands:
+  YOUR_UQ_USERNAME  Your UQ login, not your email address.
+  YOUR_ZONE_HOST    Your SSH hostname, ending in .zones.eait.uq.edu.au.
+  YOUR_WEB_HOST     Your website hostname, ending in .uqcloud.net.
+
+For a personal Zone named parkpal these normally look like:
+  YOUR_UQ_USERNAME-parkpal.zones.eait.uq.edu.au
+  YOUR_UQ_USERNAME-parkpal.uqcloud.net
+For a course/team allocation use its supplied hostnames instead.
+
+The deployment layout chosen for this app is:
+  /var/www/nodejs/parkpal/   Application code, including root index.html
+  /var/lib/parkpal/         Live accounts.json, submissions.json, reports.json
+  /var/lib/parkpal/photos/  Live uploaded photos
+
+Your phone -> https://YOUR_WEB_HOST -> nginx -> ParkPal on 127.0.0.1:8081
+
+ParkPal needs Node 22 or newer. It needs no npm install, build step, Express,
+MongoDB or MySQL. server.js already serves index.html, public/, /api/ and /photos/.
+Keep its own server as the entry process; do not rename it to app.js.
+
+
+1. GET OR CONNECT TO YOUR ZONE
+
+UQ-specific basis: the official guide [1] describes using moss, sdc-setup and
+Triton, the webproject image, nodejs service, and localhost port 8081. It also
+describes UQ-user SSH access, the two hostname forms, and the default UQ SSO gate.
+
+LOCAL COMPUTER:
+  ssh YOUR_UQ_USERNAME@moss.labs.eait.uq.edu.au
+
+ON MOSS, first-time setup only:
+  sdc-setup
+
+Follow its key-registration prompts; register only the PUBLIC key at the student
+SSH-key portal linked in [1], then run sdc-setup again if instructed. Existing
+course accounts may require a course-specific Triton profile; use the course's
+instructions rather than creating a personal replacement Zone.
+
+ON MOSS:
+  triton account get
+  triton inst list
+
+ONLY IF YOU NEED A NEW PERSONAL ZONE, check available choices, then create it:
+  triton image list
+  triton pkg list
+  triton network list
+  triton inst create --wait --name parkpal --network zones --metadata uq_users=YOUR_UQ_USERNAME webproject z1-standard
+
+Use the allocation/package permitted by your course if different. If the account
+has reached its limit, ask course support; do not delete an existing Zone.
+
+Connect to the Zone from moss:
+  ssh YOUR_UQ_USERNAME@YOUR_ZONE_HOST
+
+Alternatively, from your LOCAL COMPUTER (also usable for off-campus access):
+  ssh -J YOUR_UQ_USERNAME@moss.labs.eait.uq.edu.au YOUR_UQ_USERNAME@YOUR_ZONE_HOST
+
+The remaining server commands use sudo from your UQ account on the Zone.
+
+
+2. CHECK THE ZONE AND PREPARE THE CODE DIRECTORY
+
+ON THE ZONE:
+  cat /etc/os-release
+  webprojctl status
+  command -v node
+  node --version
+  sudo systemctl cat nodejs.service
+
+If webprojctl or nodejs.service is absent, this guide does not match the image;
+use the assigned image's instructions or ask course support before continuing.
+If Node is older than 22, use the optional runtime appendix at the end.
+
+Record the absolute Node executable path from command -v node. The service
+example below uses /usr/bin/node; replace that if your compatible Node lives
+elsewhere. An interactive-shell version manager does not automatically configure
+the Node executable used by systemd.
+
+This procedure takes over the Zone's nodejs service. If it is already running a
+project, back that project up and coordinate the change first.
+
+  sudo systemctl stop nodejs
+  mkdir -p /var/www/nodejs/parkpal
+
+If mkdir is denied, create just this app directory with sudo, then give your UQ
+user ownership so uploads can work:
+  sudo mkdir -p /var/www/nodejs/parkpal
+  sudo chown YOUR_UQ_USERNAME /var/www/nodejs/parkpal
+
+Do not recursively change permissions on /var/www. UQ's shared-directory
+permissions are special; use ownership changes for this app rather than chmod.
+
+
+3. UPLOAD PARKPAL'S CODE
+
+Open a SECOND terminal on your LOCAL COMPUTER. Leave the Zone terminal open.
+From your local project directory:
+  cd /home/jay/Documents/DECO1800_2
+  scp -J YOUR_UQ_USERNAME@moss.labs.eait.uq.edu.au -r index.html server.js package.json public YOUR_UQ_USERNAME@YOUR_ZONE_HOST:/var/www/nodejs/parkpal/
+
+This deliberately uploads code separately from live data. Do not upload .git,
+node_modules or private data into /var/www/htdocs. The root index.html belongs
+alongside server.js in /var/www/nodejs/parkpal, not inside public/.
+
+ON THE ZONE, verify:
+  ls /var/www/nodejs/parkpal
+  ls /var/www/nodejs/parkpal/public/js
+  node --check /var/www/nodejs/parkpal/server.js
+
+Expected top-level files: index.html, server.js, package.json, public/.
+package.json must be included because the JavaScript uses ES modules.
+
+
+4. SET UP PERSISTENT ACCOUNTS, SUBMISSIONS, REPORTS AND PHOTOS
+
+ON THE ZONE:
+  sudo mkdir -p /var/lib/parkpal/photos
+  sudo chown -R www-data:www-data /var/lib/parkpal
+
+The service in section 5 explicitly runs as www-data. The whole data directory
+must be writable because JSON saves use a temporary file followed by a rename.
+
+Choose ONE initial-data option:
+
+A. Start with an empty installation:
+   Leave /var/lib/parkpal empty apart from photos/. On its first start ParkPal
+   creates missing JSON files as empty arrays. Create a new account in the app.
+
+B. Bring your existing local JSON accounts, submissions, reports and photos:
+   Do this before first startup, while the Zone service is stopped, and only
+   when /var/lib/parkpal has no live records that need to be retained.
+
+   LOCAL COMPUTER, from the project directory:
+     scp -J YOUR_UQ_USERNAME@moss.labs.eait.uq.edu.au -r data YOUR_UQ_USERNAME@YOUR_ZONE_HOST:parkpal-seed-data
+
+   Use a fresh destination named parkpal-seed-data; if it already exists, choose
+   another name consistently so scp does not nest folders unexpectedly.
+
+   ON THE ZONE, from your UQ user's home directory:
+     cd ~
+     sudo cp -R parkpal-seed-data/. /var/lib/parkpal/
+     sudo chown -R www-data:www-data /var/lib/parkpal
+
+   This copy is for initial migration, not routine deployments: copying old JSON
+   onto a live site would overwrite newer contributions. Keep accounts, reports,
+   submissions and photos together. Remove the temporary seed copy after you
+   have verified the migration and retained a private backup.
+
+In this deployment DATA_DIR=/var/lib/parkpal, so that directory becomes the
+server's data folder. New photos go to /var/lib/parkpal/photos rather than the
+code checkout's data/photos. Your local computer's JSON files will not update
+when someone contributes on the hosted website.
+
+Browser-only records are different from local JSON files. For those, use the
+Accounts export/import recovery workflow documented in README.md. Browser
+storage from localhost/Live Server does not follow you to the Zone hostname.
+
+
+5. CONFIGURE THE MANAGED NODE PROCESS
+
+ON THE ZONE:
+  sudo systemctl edit nodejs.service
+
+Add this block in the editable override area, replacing /usr/bin/node if needed:
+
+  [Service]
+  Type=simple
+  User=www-data
+  Group=www-data
+  WorkingDirectory=/var/www/nodejs/parkpal
+  ExecStart=
+  ExecStart=/usr/bin/node /var/www/nodejs/parkpal/server.js
+  Environment=NODE_ENV=production
+  Environment=HOST=127.0.0.1
+  Environment=PORT=8081
+  Environment=DATA_DIR=/var/lib/parkpal
+  Environment=SECURE_COOKIES=1
+  Restart=on-failure
+  RestartSec=5
+  StandardOutput=journal
+  StandardError=journal
+
+Save and exit. For nano: Ctrl+O, Enter, Ctrl+X.
+
+The empty ExecStart= clears the template's app.js command [4]. This overrides
+its entry point without modifying ParkPal source. Node serves the root HTML;
+the Zone does not need to launch index.html as a program.
+
+ON THE ZONE:
+  sudo systemctl daemon-reload
+  sudo webprojctl enable nodejs
+  sudo systemctl enable nodejs.service
+  sudo systemctl restart nodejs.service
+  sudo systemctl status nodejs.service --no-pager
+  sudo systemctl show nodejs.service -p User -p ExecStart -p Environment
+  curl -i http://127.0.0.1:8081/api/me
+
+The local API check should return HTTP 200 and {"user":null}. If not, resolve the
+service error before changing nginx. Useful log command:
+  sudo journalctl -u nodejs.service -n 80 --no-pager
+
+systemd keeps the process running when you close SSH and starts it at boot.
+Do not also run npm start, node server.js, PM2 or a second copy of this service.
+ParkPal's JSON storage is intended for ONE process using this data directory.
+
+
+6. ADAPT NGINX FOR PARKPAL
+
+ON THE ZONE, inspect the active configuration:
+  sudo nginx -T
+  sudo cat /etc/nginx/frameworks-available/nodejs.conf
+
+The second path is the Node framework file documented in [1]. Check nginx -T
+if your image uses a different file. Back up the file before editing:
+  sudo cp -n /etc/nginx/frameworks-available/nodejs.conf /etc/nginx/frameworks-available/nodejs.conf.parkpal-backup
+  sudo nano /etc/nginx/frameworks-available/nodejs.conf
+
+Inside its EXISTING location / block, ensure these settings are present:
+
+  proxy_pass http://127.0.0.1:8081;
+  proxy_set_header Host $http_host;
+  client_max_body_size 10m;
+  proxy_read_timeout 90s;
+
+Edit matching directives instead of duplicating them. Preserve other existing
+settings, includes and UQ authentication hooks. Do not paste a second location /
+block or replace the entire nginx configuration. In the editor, $http_host is
+literal nginx syntax, not a placeholder for your domain.
+
+Why ParkPal needs these settings:
+- The origin check in server.js compares the browser's Origin host with Host.
+  Preserve the incoming Host so login, reports and uploads pass that check [2].
+- Three 2 MB photos become approximately 8 MB after base64 encoding in JSON.
+  The 10m nginx allowance accommodates this; ParkPal still enforces its own
+  9 MiB request limit, three-photo maximum and 2 MiB-per-photo limit. nginx's
+  default request-body limit is 1m and can reject valid uploads with HTTP 413 [3].
+- Council and walking-route requests can take time. The proxy timeout gives the
+  app time to finish; it does not remove the app's own request timeouts.
+
+Check the effective block in nginx -T for conflicting Host settings or more
+specific /api/ locations with smaller upload limits. Normal ParkPal paths must
+reach Node, including /, /index.html, /public/, /api/ and /photos/.
+
+ON THE ZONE:
+  sudo nginx -t
+
+Only if that reports success:
+  sudo systemctl reload nginx
+
+Open https://YOUR_WEB_HOST/ in your browser. Use the issued HTTPS website URL,
+not the internal SSH hostname or an exposed :8081 URL. Leave Node on loopback.
+HTTPS is needed for phone GPS and the Secure session cookie.
+
+
+7. CHOOSE UQ-ONLY OR PUBLIC ACCESS
+
+Initially keep the existing UQ sign-in gate while checking the deployment.
+That gate is separate from ParkPal's accounts; passing UQ SSO does not create
+or sign you into a ParkPal account.
+
+For public runners, when the course permits public access, edit:
+  sudo nano /etc/nginx/conf.d/auth.conf
+
+In its existing map $uri $acl block, change only the default rule to:
+  default "allow:*";
+
+Keep explicit protected rules for administration paths such as /vscode/,
+/phpmyadmin, /manager and /host-manager. Do not replace the file with a minimal
+public-only example. Leave the default unchanged if the course requires SSO.
+See [1], section 5.4, for the UQ access-control syntax.
+
+Then check and, on success, reload:
+  sudo nginx -t
+  sudo systemctl reload nginx
+
+ParkPal still requires its own account to add facilities and reports. Test in
+a private/incognito window to confirm the intended public or UQ-only access.
+
+
+8. VERIFY THE ACTUAL HOSTED APP
+
+In a browser at https://YOUR_WEB_HOST/:
+  1. Open home, Routes, Activity and Accounts; confirm CSS and icons load.
+  2. Create a test account and sign in. Save a 7 km radius and reload Accounts.
+  3. Return to the map; check council facilities and the new radius.
+  4. Submit an identifiable test facility with a photo at a sensible location.
+  5. Leave the map and return; confirm the submission and photo still appear.
+  6. Report an issue on that test facility; confirm Activity shows it.
+  7. Mark it resolved; reload and confirm the resolution persists.
+  8. On a phone, allow location and use the circular toilet button. Select one
+     of the nearest choices, create its route, and check the back controls.
+  9. Test guest access in another browser; shared facilities should still load.
+
+These actions create real records on this installation. Use meaningful test
+content; the app does not have a delete interface.
+
+ON THE ZONE, inspect filenames and modification times without printing accounts:
+  sudo ls -l /var/lib/parkpal
+  sudo ls -l /var/lib/parkpal/photos
+
+The same data should survive this deliberate restart:
+  sudo systemctl restart nodejs
+
+Sign in again afterwards: sessions are kept in memory and reset on restart.
+Check /data/accounts.json and /server.js in the browser: neither should be
+served as a file. With public access configured they should return 404.
+
+
+9. UPDATES AND BACKUPS
+
+Back up the DATA_DIR before changing a running installation. For a consistent
+copy, pause writes by stopping Node briefly. ON THE ZONE:
+  sudo mkdir -p /var/backups/parkpal
+  sudo systemctl stop nodejs
+  sudo tar -czf /var/backups/parkpal/data-YYYYMMDD-HHMM.tar.gz -C /var/lib parkpal
+  sudo systemctl start nodejs
+
+Replace YYYYMMDD-HHMM with a unique actual timestamp. Confirm tar succeeded.
+Retain a private off-Zone copy too, together with the deployed code and service/
+nginx configuration; an archive on the same Zone is not a disaster backup.
+
+For code updates, upload the same four items from section 3, preferably while
+Node is stopped to avoid serving a mix of old/new files. Then restart nodejs.
+Do not re-copy seed data or reset JSON. /var/lib/parkpal stays independent of
+code replacement. Recheck login, uploads and route rendering after deployment.
+
+If restoring data, first stop Node and back up the current directory. Restore
+all three JSON files AND photos from the same backup, reapply www-data ownership,
+and restart. Do not merge account IDs or facility IDs by hand.
+
+
+10. TROUBLESHOOTING
+
+502 Bad Gateway:
+  Check systemctl status nodejs, journalctl, and curl to 127.0.0.1:8081/api/me.
+  Confirm ExecStart uses the correct Node binary and server.js path. Ensure
+  proxy_pass uses the same IPv4 loopback address and port as ParkPal.
+
+Default welcome page or Live Server warning:
+  Check webprojctl status and nginx -T. The request may still be served as static
+  content or by the example app. Verify Node's overridden entry point and that
+  the entire public URL is proxied to it.
+
+403 Invalid request origin on sign-in or saving:
+  Check the effective proxy_set_header Host line. Do not disable ParkPal's
+  origin protection. Use the same hostname for the page and its /api/ requests.
+
+413 when adding photos:
+  Check nginx's effective client_max_body_size and any upstream gateway limit.
+  Test one small JPEG/PNG first. App limits still apply even if nginx accepts it.
+  If local Node accepts a valid large upload but the public URL rejects it after
+  fixing nginx, ask UQ support to check the outer proxy's request-body limit.
+
+JSON/photos do not save, or service fails with EACCES:
+  Check DATA_DIR in systemctl show and www-data ownership of that directory,
+  its JSON files and photos. Also check free disk space with df -h. Inspect any
+  inherited systemd filesystem restrictions if ownership alone is insufficient.
+  Do not solve this by running the application as root or using chmod -R 777.
+
+Sign-in works locally but not on the phone:
+  Use HTTPS. Secure cookies are not sent over ordinary HTTP. Allow location in
+  the browser's site permissions for GPS; use a normal browser tab.
+
+429 after repeated sign-in attempts:
+  This version counts authentication attempts using req.socket.remoteAddress.
+  Behind nginx, users share its loopback address and therefore the 30-attempt,
+  15-minute bucket. Wait for it to expire. Supporting larger public traffic
+  requires an application change to trust a verified proxy client address;
+  adding X-Forwarded-For alone does not change the current limiter.
+
+Map tiles/council/route failures:
+  Check browser network errors and Node logs. The Zone needs outbound HTTPS to
+  data.brisbane.qld.gov.au and routing.openstreetmap.de. Browsers need access to
+  unpkg.com and tile.openstreetmap.org. These services may also rate-limit or fail.
+
+SSH times out:
+  Use the moss jump-host command in section 1 and the internal SSH hostname.
+  Public web access and SSH access are different network paths.
+
+For course access/image/allocation problems, start with your tutor or
+helpdesk@eait.uq.edu.au. Include the Zone hostname and relevant error, not
+passwords, private SSH keys or accounts.json.
+
+
+OPTIONAL APPENDIX: A COMPATIBLE NODE RUNTIME
+
+Skip this if the Zone already has a supported Node version >=22.
+Official Node downloads list v24.21.0 as LTS on the date checked [5]. For a later
+deployment, use the current maintained LTS release and its corresponding files.
+
+ON THE ZONE:
+  uname -m
+
+The following download is ONLY for an x86_64 Linux Zone. For other architectures,
+choose the matching official binary from [5] instead.
+
+  mkdir -p ~/parkpal-node-download
+  cd ~/parkpal-node-download
+  curl -fLO https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz
+  curl -fLO https://nodejs.org/dist/v24.21.0/SHASUMS256.txt
+  grep ' node-v24.21.0-linux-x64.tar.xz$' SHASUMS256.txt | sha256sum -c -
+
+Continue only if the archive checksum reports OK:
+  sudo tar -xJf node-v24.21.0-linux-x64.tar.xz -C /opt
+  /opt/node-v24.21.0-linux-x64/bin/node --version
+
+In section 5 use this absolute path for ExecStart:
+  ExecStart=/opt/node-v24.21.0-linux-x64/bin/node /var/www/nodejs/parkpal/server.js
+
+Use the same binary for manual node --check commands. This does not replace the
+Zone's system Node or rely on a login-shell version manager. If the binary fails
+to run on the allocated image, ask UQ support about its runtime compatibility.
+
+
+SOURCES
+
+[1] UQcloud zones guide, EAIT ITIG:
+https://stluc.manta.uqcloud.net/xlex/public/zones-guide.html
+Sections 2-4 (access/creation), 5.2-5.6 (services/nginx/SSO/permissions), 6.4 (Node).
+
+[2] nginx proxy module: Host forwarding and proxy timeouts:
+https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header
+https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout
+
+[3] nginx request-body limit:
+https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size
+
+[4] systemd upstream manuals: service command overrides and execution settings:
+https://github.com/systemd/systemd/blob/main/man/systemd.service.xml
+https://github.com/systemd/systemd/blob/main/man/systemd.exec.xml
+
+[5] Official Node.js downloads:
+https://nodejs.org/en/download
+
+App-specific decisions were checked against this repository's server.js,
+package.json and frontend API calls: entry point, Node requirement, environment
+variables, upload limits, origin checks, file storage and in-memory sessions.

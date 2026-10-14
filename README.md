@@ -1,98 +1,94 @@
 # ParkPal
 
-ParkPal helps runners find Brisbane drinking fountains and public toilets, plan walking routes with stops, and record facility problems. It uses **plain HTML, CSS and JavaScript** with Leaflet. There is no build step.
+ParkPal helps runners find Brisbane toilets and drinking water, plan walking routes, and share facilities and problem reports. The interface uses plain HTML, CSS and JavaScript with Leaflet. A small Node server saves shared JSON records and photos. There is no build step or application dependency to install.
 
-## Open with Live Server
+## Run locally
 
-1. Open this project in VS Code or VSCodium.
-2. Right-click **`index.html`** and choose **Open with Live Server**.
-3. Keep Live Server running while you work. No Node process or `npm install` is needed.
+1. Install Node.js 22 or newer.
+2. From this project directory, run `node server.js` (or `npm start`).
+3. Open **http://localhost:3000**.
 
-Live Server serves the files over HTTP. Opening the HTML directly as a `file://` URL will not work correctly with JavaScript modules and browser security rules.
+**Use the Node server, rather than Live Server**, for the working app. Live Server cannot write shared JSON or photo files. Root `index.html` remains the entry point; the Node server serves it at `/` and `/index.html`.
 
-## Pages
+Optional environment variables: `PORT` (default 3000), `HOST` (default 0.0.0.0), `DATA_DIR` (default this project's `data` directory), and `SECURE_COOKIES=1` when served through HTTPS.
 
-| File                   | What it does                                                                |
-| ---------------------- | --------------------------------------------------------------------------- |
-| `index.html`           | Home map, closest-toilet shortcut, bottom sheet of facilities, and new pins |
-| `public/routes.html`   | Route start, ordered stops, return trip and walking directions              |
-| `public/activity.html` | The 10 latest local reports, with resolution controls                       |
-| `public/accounts.html` | Local account creation, sign-in, and facility preferences                   |
+## Pages and code
 
-Each page has real links to the other pages. Route drafts survive navigation within the same browser tab. The shared bottom navigation provides account access; there is no extra account button at the top.
+| File                                                            | Responsibility                                                          |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `index.html`                                                    | Home map, facility bottom sheet, three closest toilets, new submissions |
+| `public/accounts.html`                                          | Accounts, radius slider, preferences, browser contribution recovery     |
+| `public/routes.html`                                            | Route start, ordered stops, walking route and directions                |
+| `public/activity.html`                                          | Ten latest shared reports and resolution controls                       |
+| `public/js/index.js`, `accounts.js`, `routes.js`, `activity.js` | Respective page interactions                                            |
+| `public/js/api.js`                                              | Same-origin requests to the Node server                                 |
+| `public/js/storage.js`                                          | Accounts, shared submissions/reports, radius preferences                |
+| `public/js/services.js`                                         | Facility and walking-route API calls                                    |
+| `public/js/map.js`                                              | Leaflet markers, clusters, selection and route lines                    |
+| `public/js/facility-details.js`, `reports.js`                   | Facility dialog and report timelines                                    |
+| `public/js/photos.js`                                           | Photo selection, previews and upload preparation                        |
+| `public/js/migration.js`                                        | Optional recovery of old browser contributions                          |
+| `public/js/route-state.js`, `helpers.js`                        | Tab-local route draft and shared utilities                              |
+| `public/style.css`, `icon.svg`, `icons.svg`                     | Responsive styling, running-person logo and interface icons             |
+| `server.js`                                                     | Static pages, authentication, council/routing requests and file storage |
+| `FEATURES.txt`                                                  | Current feature report; update whenever functionality changes           |
 
-## Where to edit the code
+## Shared storage
 
-The files use normal indentation and short comments. Each script has a specific job:
+- `data/accounts.json`: accounts, salted password hashes and preferences.
+- `data/submissions.json`: community facilities and references to their photo filenames.
+- `data/reports.json`: reports and resolution information.
+- `data/photos/`: uploaded JPEG, PNG and WebP files. Up to three photos per submission, each at most 2 MB. Photos appear in facility details.
 
-| File                            | Responsibility                                                         |
-| ------------------------------- | ---------------------------------------------------------------------- |
-| `public/style.css`              | Shared colours, typography, map, bottom sheet, forms and phone layouts |
-| `public/icon.svg`               | ParkPal's running-person logo                                          |
-| `public/icons.svg`              | Reusable interface symbols                                             |
-| `public/js/index.js`            | Home page controls, filters, bottom sheet and adding facilities        |
-| `public/js/routes.js`           | Route page interactions and route results                              |
-| `public/js/accounts.js`         | Account forms and preferences                                          |
-| `public/js/activity.js`         | Activity page interactions                                             |
-| `public/js/map.js`              | Leaflet tiles, markers, clusters and route lines                       |
-| `public/js/services.js`         | Council dataset and walking-route requests                             |
-| `public/js/storage.js`          | Browser-local accounts, contributions and reports                      |
-| `public/js/route-state.js`      | Route draft shared between pages in one tab                            |
-| `public/js/facility-details.js` | Facility dialog and problem-report form                                |
-| `public/js/reports.js`          | Shared report timeline markup                                          |
-| `public/js/helpers.js`          | Formatting, location, form handling and other small utilities          |
+Existing JSON records are retained. Each facility request loads council results first, then reads submissions fresh from disk and applies the same radius. Reports and resolution changes are written before success is returned to the interface. Community records are available to other browsers without signing in; adding facilities and reporting/resolving problems require an account.
 
-## Storage: browser-only for now
+The server only serves allowed application assets and uploaded images. Account JSON and other project files are not public URLs. Back up the whole data directory together. Run a **single Node process** against each data directory; these JSON files are not a multi-process database.
 
-This version uses `localStorage`, with keys beginning `parkpal.`. Accounts, preferences, submissions and reports stay in the browser and on the exact origin where you created them. A different browser, port, hostname, or device has different data. Clearing browser storage removes the local records.
+Sessions use HttpOnly cookies, expire after seven days, and are held in server memory: restarting the server requires signing in again but does not remove saved records. There is no email verification, password reset or moderation interface. Contributions appear immediately and remain unverified.
 
-Accounts are **prototype accounts, not secure server authentication**. Passwords are hashed using Web Crypto rather than saved as plain text, but the browser user can still inspect or change local data. Use demo passwords. Browser-local accounts cannot enforce permissions between real users.
+Guest radius is saved in this browser's `localStorage`; signed-in radius is saved with the account. Route drafts and their chosen start remain in `sessionStorage` for the current tab. Facility coordinates are shared; GPS history is not recorded.
 
-Only a signed-in local account can use the contribution/report controls. Exploring the map and planning routes work without an account. There is no email verification or password recovery.
+## Recover contributions from the earlier browser-only version
 
-The existing `data/accounts.json`, `data/submissions.json`, and `data/reports.json` have been left intact. **The static app does not read or modify those files.** Earlier server accounts will not automatically become browser accounts; create a local account for this version.
+Earlier browser accounts are separate from server accounts. Sign in with an existing server account, or create one using the same email as your old browser account.
 
-Browser JavaScript cannot silently write to project files. Sharing contributions between runners or automatically updating JSON files on the host would need a backend or external storage service again.
+On the Accounts page, **Import browser contributions** copies that account's old submissions and reports into shared storage. Retrying an import does not duplicate the same records. Old browser storage is retained, and passwords are never exported.
 
-Route drafts, including the chosen start, use `sessionStorage` so they survive navigation in the current tab. GPS positions are not added to account records. Submitted facility coordinates are saved as part of the submission.
+Browser storage belongs to an exact origin, including its port. If old contributions were made through Live Server:
+
+1. Open the updated Accounts page on the **same old Live Server address**, in the browser that still holds the old signed-in account.
+2. Choose **Export browser contributions**. The server-unavailable message does not prevent this export.
+3. Open ParkPal through Node, sign in with the matching email, and choose that JSON file under **Recover browser contributions**.
+
+If that browser's old account was signed out, sign in using the previous browser-only version before exporting. Contributions for other accounts must be recovered separately. Clearing old browser storage before exporting loses those browser-only records.
 
 ## Map and routes
 
-- Facilities start within **5 km** of the current location, with 2 km and 10 km options in the expanded sheet.
-- If GPS is blocked, the app clearly labels the Brisbane preview. You can choose a route start on the map.
-- Tap or swipe the sheet handle to show/hide the list. Expanded content scrolls independently of the map. Nearby markers are clustered to keep dense areas readable.
-- The closest-toilet shortcut finds the nearest matching toilet by **straight-line distance**, then opens a walking route to it. It does not compare walking distances to every toilet or verify live opening status.
-- Routes can have up to 10 stops, visited in the order shown. Stops can be facilities or map pins, and can be moved earlier or removed. A return-to-start option is included.
-- Routes follow mapped walking paths. A service failure shows an error; no invented route is substituted. This is a route planner, not live navigation or run tracking.
-- Reports support broken, dirty, unavailable, construction, missing and other problems. Facility details show the last 10 reports plus older unresolved reports, so old issues remain resolvable.
+The account page has a **1–10 km radius slider**, in 1 km steps, defaulting to **5 km**. Save it and return to the map to apply it. Toilet amenities, bottle filling and hiding facilities with unresolved reports are optional account preferences.
 
-The interface uses mostly 16px text, 14px supporting labels, high-contrast controls and large touch targets. The map provider's attribution is the small-text exception.
+The circular toilet button in the bottom navigation asks for your location and displays **up to three closest matching toilets within your radius**, ranked by straight-line distance. Other facility markers are hidden. Choose a pin or list item and select **Route here** to draw the walking route. The top-left back button returns to normal exploration; the route page has a back link to the toilet choices. If fewer than three qualify, only those available are shown. If council toilet data cannot load, the app does not claim a reliable nearest selection.
 
-## External data
+Normal exploration has clustered markers, type filters, name/address search and a tap/swipe bottom sheet. GPS denial leaves a labelled Brisbane preview; users can also choose route starts on the map. Panning does not fetch a new area automatically. Preferences can hide a saved submission if it does not match them.
 
-Council facilities come from:
+Routes include up to ten ordered facility or map stops, reordering/removal, and an optional return to start. They show mapped walking paths, distance, estimated walking time and directions. Failed routing shows an error rather than an invented line. This is a route planner, not live navigation or run tracking.
+
+Reports support broken, dirty, unavailable, under construction, missing and other problems. Activity shows the ten latest reports. Facility details show the last ten plus older unresolved reports so those problems can still be marked resolved.
+
+## External services and hosting
+
+Council datasets:
 
 - [Public toilets in Brisbane](https://data.brisbane.qld.gov.au/explore/dataset/public-toilets-in-brisbane/information/)
 - [Park drinking fountain / tap locations](https://data.brisbane.qld.gov.au/explore/dataset/park-drinking-fountain-tap-locations/information/)
 
-The browser applies `within_distance` queries to the council API and fetches every matching page of 100 records. Successful queries are cached in memory for five minutes. Local submissions use the same distance filter. Panning does not silently fetch another area; using GPS or changing the radius refreshes the home query.
+The server makes radius-filtered council queries, fetches all matching pages and caches successful council responses for five minutes. Community submissions and reports are read fresh on each request. Council water records do not confirm bottle filling; that preference matches explicitly tagged community submissions.
 
-Council water records don't confirm bottle filling. That preference matches only local contributions explicitly tagged with the amenity. Opening hours and other council details are shown as supplied.
+Leaflet, marker clustering and OpenStreetMap tiles load over the internet. Walking routes use FOSSGIS's OSRM foot service. The council receives search coordinates/radius; the route provider receives route coordinates. These public services can be unavailable and have usage limits.
 
-Maps use [Leaflet](https://leafletjs.com/), its [marker-clustering plugin](https://github.com/Leaflet/Leaflet.markercluster), and [OpenStreetMap tiles](https://www.openstreetmap.org/copyright). Routes use the [FOSSGIS OSRM walking service](https://routing.openstreetmap.de/about.html). Requests from the route page are spaced at least 1.1 seconds apart. Public services require internet access, allow browser cross-origin requests at present, and have usage limits; use a suitable hosted provider before scaling beyond a class prototype.
+For UQ Zone, deploy this as a **Node application**, not just static files. Preserve the root `index.html` and `public/` structure, configure the Zone to run `node server.js` on its assigned port, and route web requests to that process. Keep `DATA_DIR` on persistent writable storage outside any separately served static directory. Enable HTTPS for phone geolocation and set `SECURE_COOKIES=1` there. Localhost is allowed for development.
 
-The council receives the search coordinates and radius. The route provider receives the route coordinates. Map tiles and Leaflet assets also load over the internet.
+See [initialize_server.txt](initialize_server.txt) for researched, step-by-step UQcloud `webproject` setup tailored to ParkPal, including uploads, Node service settings, nginx, photos, backups and troubleshooting. The assigned Zone itself has not been inspected or configured; use your course's allocation and confirm that its image matches the guide. Uploading `index.html` alone will not enable shared storage or photos.
 
-## UQ Zone hosting
+## Checks
 
-For a static deployment, upload **the root `index.html` and the entire `public/` folder**, preserving that structure. Links work at the site root or in a subdirectory. Do not upload the project `data/` folder with account records.
-
-The [UQcloud Zone guide](https://stluc.manta.uqcloud.net/xlex/public/zones-guide.html) says a standard `webproject` Zone serves static files from `/var/www/htdocs`. In that setup, `index.html` becomes `/var/www/htdocs/index.html` and the `public/` folder becomes `/var/www/htdocs/public/`. Your allocated Zone's configuration and course instructions may differ; its setup has not been verified here.
-
-The same guide also documents Node hosting for `webproject` Zones, but **this version does not need it**. HTTPS is required for phone geolocation and Web Crypto account setup; localhost is allowed for development. Use the Zone's HTTPS URL when testing on a phone.
-
-## Earlier Node server
-
-`server.js`, `package.json`, and `tests/server.test.js` are retained as the earlier JSON-backend implementation, formatted for readability. They are optional reference code, not dependencies of the current interface. The current pages use browser storage even when served through this server. Do not expect signing in on these pages to call the legacy account APIs.
-
-If desired, `node server.js` still serves the pages at `http://localhost:3000` (Node 22+). `node --test tests/server.test.js` checks the retained backend against mocked external services. Those tests do not verify the static interface; the interface must be tested in a browser.
+Run `npm test` (or `node --test tests/server.test.js`). Backend tests use a temporary data directory and mocked council/routing responses, leaving project records intact. They cover authentication, file access, radius queries, submission reloads, reports, photos, import retries and routes. Browser checks should also cover phone/desktop layout and route-line rendering.

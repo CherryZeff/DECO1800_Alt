@@ -13,11 +13,13 @@ import {
   amenityNames,
   pageURL,
 } from './helpers.js';
-import { getAccount, requireAccount, addFacility } from './storage.js';
-import { getFacilities, attachReportCounts } from './services.js';
+import { getAccount, requireAccount, addFacility, loadAccount, getRadius } from './storage.js';
+import { getFacilities } from './services.js';
 import { FacilityMap } from './map.js';
 import { setupFacilityDetails } from './facility-details.js';
 import { readRoute, saveRoute } from './route-state.js';
+
+import { readPhotos, showPhotoPreview, clearPhotoPreview } from './photos.js';
 
 const draft = readRoute();
 const state = {
@@ -33,6 +35,9 @@ const state = {
   picking: false,
 };
 let requestNumber = 0;
+let nearestMode = false;
+let nearestRequest = 0;
+let previousArea = null;
 const details = setupFacilityDetails(refreshReports);
 const facilityMap = new FacilityMap(
   (facility) => {
@@ -44,36 +49,41 @@ const facilityMap = new FacilityMap(
 );
 setupDialogs();
 
-function refreshReports() {
-  state.facilities = attachReportCounts(state.facilities);
-  renderFacilities();
+async function refreshReports() {
+  await loadFacilities();
 }
 
 function matchesPreferences(facility) {
   const preferences = getAccount()?.preferences || {};
   if (preferences.hideIssues && facility.openReports) return false;
-  const keys = facility.type === 'toilet' ? ['accessible', 'unisex', 'babychange'] : ['bottle'];
+  const keys =
+    facility.type === 'toilet' ? ['accessible', 'unisex', 'babychange'] : ['bottle'];
   return keys.every((key) => !preferences[key] || facility.amenities.includes(key));
 }
 
 function visibleFacilities() {
   return state.facilities
     .filter((facility) => {
-      const matchesType = state.filter === 'all' || state.filter === facility.type;
+      const matchesType = nearestMode
+        ? facility.type === 'toilet'
+        : state.filter === 'all' || state.filter === facility.type;
       const matchesSearch = `${facility.name} ${facility.address}`
         .toLowerCase()
         .includes(state.search);
-      return matchesType && matchesSearch && matchesPreferences(facility);
+      return matchesType && (nearestMode || matchesSearch) && matchesPreferences(facility);
     })
     .sort(
       (first, second) =>
         distanceBetween(state.center, first) - distanceBetween(state.center, second),
-    );
+    )
+    .slice(0, nearestMode ? 3 : undefined);
 }
 
 function renderFacilities() {
   const facilities = visibleFacilities();
-  find('#facility-count').textContent = `${facilities.length} nearby stops`;
+  find('#facility-count').textContent = nearestMode
+    ? `${facilities.length} closest matching toilets within ${state.radius / 1000} km`
+    : `${facilities.length} nearby stops`;
   find('#data-warning').textContent = state.warnings.join(' ');
   find('#data-warning').hidden = !state.warnings.length;
   const shown = facilities.slice(0, state.limit);
@@ -85,7 +95,7 @@ function renderFacilities() {
       <span class="facility-symbol ${facility.type}">${icon(facility.type)}</span>
       <span class="facility-copy">
         <strong>${escapeHTML(titleCase(facility.name))}</strong>
-        <span class="${facility.openReports ? 'issue-text' : 'muted'}">${facility.openReports ? `${facility.openReports} open reports` : facility.type === 'water' ? 'Drinking water' : 'Public toilet'}${facility.source === 'Community' ? ' · Local pin' : ''}</span>
+        <span class="${facility.openReports ? 'issue-text' : 'muted'}">${facility.openReports ? `${facility.openReports} open reports` : facility.type === 'water' ? 'Drinking water' : 'Public toilet'}${facility.source === 'Community' ? ' · Community' : ''}</span>
       </span>
       <span class="facility-distance">${formatDistance(distanceBetween(state.center, facility))}</span>
     </button>
@@ -103,7 +113,7 @@ function renderFacilities() {
       renderFacilities();
     };
   }
-  facilityMap.showFacilities(facilities);
+  facilityMap.showFacilities(facilities, !nearestMode);
 }
 
 async function loadFacilities() {
@@ -115,6 +125,8 @@ async function loadFacilities() {
     if (currentRequest !== requestNumber) return false;
     state.facilities = result.facilities;
     state.warnings = result.warnings;
+    if (nearestMode && state.warnings.some((warning) => /toilet/i.test(warning)))
+      state.facilities = [];
     renderFacilities();
     if (state.warnings.length) notify(state.warnings.join(' '));
     return true;
@@ -136,6 +148,8 @@ function updateCenter(point, label) {
   state.centerLabel = label;
   find('#location-label').textContent = `${label} · ${state.radius / 1000} km`;
   facilityMap.setCenter(point, state.radius, label);
+  facilityMap.showRadius(!nearestMode);
+  find('#radius-link').textContent = `Radius: ${state.radius / 1000} km ↗`;
   const route = readRoute();
   route.origin = point;
   route.originLabel = label;
@@ -143,12 +157,15 @@ function updateCenter(point, label) {
 }
 
 async function locate() {
+  const currentMode = nearestRequest;
   find('#locate').disabled = true;
   try {
     const point = await getLocation();
+    if (nearestMode || currentMode !== nearestRequest) return;
     updateCenter(point, 'Your location');
     const loaded = await loadFacilities();
-    if (!loaded) throw new Error('Facilities are still loading or unavailable. Please try again.');
+    if (!loaded)
+      throw new Error('Facilities are still loading or unavailable. Please try again.');
     return point;
   } finally {
     find('#locate').disabled = false;
@@ -156,34 +173,59 @@ async function locate() {
 }
 
 async function nearestToilet() {
-  const button = find('#nearest-toilet');
-  button.disabled = true;
+  if (nearestMode) return;
+  previousArea = { center: state.center, centerLabel: state.centerLabel };
+  nearestMode = true;
+  const current = ++nearestRequest;
+  requestNumber++; // Ignore an older area request that finishes after this switch.
+  document.body.classList.add('nearest-mode');
+  find('#nearest-back').hidden = false;
+  find('#sheet-title').textContent = 'Closest toilets';
+  find('#nearest-toilet').disabled = true;
+  state.facilities = [];
+  state.warnings = [];
+  renderFacilities();
+  find('#facility-count').textContent = 'Finding your location…';
+  facilityMap.showRadius(false);
+  setSheetExpanded(false);
   try {
-    await locate();
-    if (state.warnings.some((warning) => warning.includes('toilets'))) {
-      throw new Error('Toilet data is unavailable. Refresh and try again.');
-    }
-    const toilets = state.facilities.filter(
-      (facility) => facility.type === 'toilet' && matchesPreferences(facility),
+    const point = await getLocation();
+    if (current !== nearestRequest) return;
+    updateCenter(point, 'Your location');
+    const loaded = await loadFacilities();
+    if (current !== nearestRequest || !loaded) return;
+    const toilets = visibleFacilities();
+    facilityMap.frameChoices(toilets, point);
+    notify(
+      toilets.length
+        ? 'Select a toilet pin or open the list to create a route.'
+        : 'No matching toilets available in this radius. Go back to change your radius or retry.',
     );
-    toilets.sort(
-      (first, second) =>
-        distanceBetween(state.center, first) - distanceBetween(state.center, second),
-    );
-    if (!toilets.length)
-      throw new Error(
-        'No matching toilet nearby. Expand the list to change your radius or preferences.',
-      );
-    const route = readRoute();
-    route.stops = [toilets[0]];
-    route.roundTrip = false;
-    saveRoute(route);
-    location.href = pageURL('routes.html?build=1&nearest=1');
   } catch (error) {
+    if (current !== nearestRequest) return;
+    state.warnings = [error.message];
+    renderFacilities();
     notify(error.message);
   } finally {
-    button.disabled = false;
+    if (current === nearestRequest) find('#nearest-toilet').disabled = false;
   }
+}
+
+function leaveNearestMode() {
+  nearestRequest++;
+  requestNumber++;
+  nearestMode = false;
+  document.body.classList.remove('nearest-mode');
+  find('#nearest-back').hidden = true;
+  find('#nearest-toilet').disabled = false;
+  find('#sheet-title').textContent = 'Nearby stops';
+  updateCenter(previousArea.center, previousArea.centerLabel);
+  state.facilities = [];
+  renderFacilities();
+  const url = new URL(location.href);
+  url.searchParams.delete('toilets');
+  history.replaceState(null, '', url);
+  loadFacilities();
 }
 
 // The sheet works with a tap, keyboard activation, or a vertical handle swipe.
@@ -221,7 +263,9 @@ find('#toggle-sheet').addEventListener(
 
 function updateAmenities() {
   const toilet = find('#add-form [name=type]').value === 'toilet';
-  const keys = toilet ? ['accessible', 'unisex', 'babychange'] : ['accessible', 'bottle', 'dog'];
+  const keys = toilet
+    ? ['accessible', 'unisex', 'babychange']
+    : ['accessible', 'bottle', 'dog'];
   find('#add-amenities').innerHTML = keys
     .map(
       (key) => `
@@ -234,6 +278,7 @@ function updateAmenities() {
 function showAddForm() {
   if (!requireAccount('index.html?add=1')) return;
   find('#add-form').reset();
+  clearPhotoPreview();
   state.pin = null;
   find('#pin-description').textContent = 'Choose a location below.';
   find('#add-form .form-error').textContent = '';
@@ -278,9 +323,10 @@ find('#add-current-location').onclick = async () => {
     button.disabled = false;
   }
 };
-handleForm(find('#add-form'), (form) => {
+handleForm(find('#add-form'), async (form) => {
   if (!state.pin) throw new Error('Use your location or place a pin first.');
-  const facility = addFacility({
+  const facility = await addFacility({
+    photos: await readPhotos(find('#facility-photos')),
     type: form.get('type'),
     name: form.get('name').trim(),
     ...state.pin,
@@ -289,15 +335,16 @@ handleForm(find('#add-form'), (form) => {
     hours: form.get('hours').trim() || 'Opening hours not provided',
   });
   find('#add-dialog').close();
-  if (distanceBetween(state.center, facility) <= state.radius) {
-    state.facilities.push(facility);
-    renderFacilities();
-  }
+  clearPhotoPreview();
+  // Keep a newly added distant pin inside the saved map area on the next visit.
+  if (distanceBetween(state.center, facility) > state.radius)
+    updateCenter(facility, 'Around your submission');
+  await loadFacilities();
   if (!visibleFacilities().some((item) => item.id === facility.id))
     facilityMap.addFacility(facility);
   facilityMap.focus(facility);
   details.open(facility);
-  notify('Facility saved on this browser.');
+  notify('Facility saved and shared.');
 });
 
 // Page-specific controls. Normal navigation uses links in the HTML.
@@ -307,10 +354,16 @@ find('#add-from-list').onclick = showAddForm;
 find('#nearest-toilet').onclick = nearestToilet;
 find('#locate').onclick = () => locate().catch((error) => notify(error.message));
 find('#retry-data').onclick = loadFacilities;
-find('#radius').onchange = (event) => {
-  state.radius = Number(event.target.value);
-  updateCenter(state.center, state.centerLabel);
-  loadFacilities();
+find('#nearest-back').onclick = leaveNearestMode;
+find('#facility-photos').onchange = (event) => {
+  try {
+    showPhotoPreview(event.target);
+    find('#add-form .form-error').textContent = '';
+  } catch (error) {
+    event.target.value = '';
+    clearPhotoPreview();
+    find('#add-form .form-error').textContent = error.message;
+  }
 };
 find('#facility-search').oninput = (event) => {
   state.search = event.target.value.trim().toLowerCase();
@@ -337,6 +390,8 @@ find('#facility-list').onclick = (event) => {
 };
 
 async function start() {
+  await loadAccount();
+  state.radius = getRadius();
   const query = new URLSearchParams(location.search);
   const lat = Number(query.get('lat'));
   const lng = Number(query.get('lng'));
@@ -349,6 +404,10 @@ async function start() {
     Math.abs(lng) <= 180;
   if (hasMapLink) updateCenter({ lat, lng }, 'Selected map area');
   else updateCenter(state.center, state.centerLabel);
+  if (query.has('toilets')) {
+    await nearestToilet();
+    return;
+  }
   await loadFacilities();
   if (hasMapLink) facilityMap.focus({ lat, lng });
   if (query.has('add')) showAddForm();

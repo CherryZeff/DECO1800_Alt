@@ -18,5 +18,27 @@
     "author": "Elver Galarga",
     "userId": "d34e4cc2-84a9-435a-899e-f14b1a638d44",
     "createdAt": "2026-10-13T03:48:59.085Z"
+  },
+  {
+    "id": "community:07e44db7-f500-4077-b105-11993b89202c",
+    "type": "toilet",
+    "name": "Soccer Court",
+    "lat": -27.49773207371014,
+    "lng": 153.01503539085388,
+    "amenities": [
+      "accessible",
+      "unisex"
+    ],
+    "description": "",
+    "address": "",
+    "hours": "8 am to 10pm",
+    "restrictions": [],
+    "source": "Community",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-13T07:28:08.058Z",
+    "photos": [
+      "79a58b0f-b3f6-4352-98dd-7923d82de811.webp"
+    ]
   }
 ]

@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#1c211e" />
     <meta
       name="description"
@@ -45,6 +48,13 @@
     </header>
     <main class="route-layout">
       <section class="route-map" aria-label="Route map">
+        <a
+          id="toilet-route-back"
+          class="secondary nearest-back"
+          href="../index.html?toilets=1"
+          hidden
+          >← Back to toilets</a
+        >
         <div id="map" aria-label="Interactive facility map"></div>
         <p id="map-error" class="notice map-error" hidden>
           The map could not load. Check your connection and reload.
@@ -61,12 +71,16 @@
             Plan your
             <span>next run.</span>
           </h1>
-          <p class="intro">Build a walking route, with room for a water break.</p>
+          <p class="intro">
+            Build a walking route, with room for a water break.
+          </p>
           <div class="route-start">
             <span class="live-dot"></span>
             <div>
               <strong id="route-origin">Brisbane preview start</strong>
-              <small id="route-origin-detail">Use GPS or choose a start on the map.</small>
+              <small id="route-origin-detail"
+                >Use GPS or choose a start on the map.</small
+              >
             </div>
           </div>
           <div class="button-row">
@@ -74,7 +88,9 @@
               <svg class="icon"><use href="./icons.svg#i-target" /></svg>
               Use my location
             </button>
-            <button id="pick-start" class="secondary small">Choose start</button>
+            <button id="pick-start" class="secondary small">
+              Choose start
+            </button>
           </div>
           <h2 class="spaced-heading">
             Your stops
@@ -82,8 +98,8 @@
           </h2>
           <ol id="route-stops" class="route-stops"></ol>
           <p id="route-empty" class="empty-state">
-            Choose facilities on the map, or drop a pin for your destination. Stops are visited in
-            the order shown.
+            Choose facilities on the map, or drop a pin for your destination.
+            Stops are visited in the order shown.
           </p>
           <div class="button-row">
             <button id="pick-stop" class="secondary">
@@ -100,35 +116,54 @@
             <svg class="icon"><use href="./icons.svg#i-route" /></svg>
             Create walking route
           </button>
-          <button id="clear-route" class="text-button refresh-button">Clear route</button>
+          <button id="clear-route" class="text-button refresh-button">
+            Clear route
+          </button>
           <p id="route-message" class="form-error" role="alert"></p>
           <p id="nearest-note" class="notice" hidden>
-            Closest matching toilet by straight-line distance. Check opening hours and access before
-            heading out.
+            You chose one of the closest matching toilets by straight-line
+            distance. Check opening hours and access before heading out.
           </p>
           <div id="route-result" hidden></div>
           <p class="fine-print">
-            Routes follow mapped walking paths. Check access and opening hours before heading out.
-            Route points are sent to the public OSRM walking service.
+            Routes follow mapped walking paths. Check access and opening hours
+            before heading out. Route points are sent to the public OSRM walking
+            service.
           </p>
         </section>
       </div>
     </main>
     <nav class="bottom-nav" aria-label="Main navigation">
       <a href="../index.html">
-        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-pin"></use></svg>
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-pin"></use>
+        </svg>
         <span>Explore</span>
       </a>
       <a href="./routes.html" class="active" aria-current="page">
-        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-route"></use></svg>
-        <span>Routes</span>
-      </a>
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-route"></use>
+        </svg>
+        <span>Routes</span> </a
+      ><a
+        href="../index.html?toilets=1"
+        class="toilet-shortcut"
+        aria-label="Find the three closest toilets"
+        ><span class="toilet-circle"
+          ><svg class="icon" aria-hidden="true">
+            <use href="./icons.svg#i-wc"></use></svg></span
+        ><span>Toilets</span></a
+      >
       <a href="./activity.html">
-        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-activity"></use></svg>
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-activity"></use>
+        </svg>
         <span>Activity</span>
       </a>
       <a href="./accounts.html">
-        <svg class="icon" aria-hidden="true"><use href="./icons.svg#i-user"></use></svg>
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-user"></use>
+        </svg>
         <span>Account</span>
       </a>
     </nav>
@@ -173,7 +208,9 @@
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
     <noscript>
-      <p class="noscript">Enable JavaScript to use ParkPal’s map and local account features.</p>
+      <p class="noscript">
+        Enable JavaScript to use ParkPal’s map and account features.
+      </p>
     </noscript>
   </body>
 </html>

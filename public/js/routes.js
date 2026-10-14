@@ -9,28 +9,26 @@ import {
   getLocation,
   setupDialogs,
 } from './helpers.js';
-import { getFacilities, getWalkingRoute, attachReportCounts } from './services.js';
+import { getFacilities, getWalkingRoute } from './services.js';
 import { FacilityMap } from './map.js';
 import { readRoute, saveRoute } from './route-state.js';
 import { setupFacilityDetails } from './facility-details.js';
 
+import { loadAccount, getRadius } from './storage.js';
+
+const toiletRoute = new URLSearchParams(location.search).has('nearest');
 let draft = readRoute();
 let facilities = [];
 let pickMode = null;
 let requestNumber = 0;
 let loadingRoute = false;
-const details = setupFacilityDetails(
-  () => {
-    facilities = attachReportCounts(facilities);
-    facilityMap.showFacilities(facilities);
-  },
-  () => {
-    draft = readRoute();
-    clearResult();
-    renderDraft();
-    notify('Stop added to your route.');
-  },
-);
+let nearbyRequest = 0;
+const details = setupFacilityDetails(loadNearby, () => {
+  draft = readRoute();
+  clearResult();
+  renderDraft();
+  notify('Stop added to your route.');
+});
 const facilityMap = new FacilityMap((facility) => {
   if (!pickMode) details.open(facility);
 }, chooseMapPoint);
@@ -66,8 +64,14 @@ function renderDraft() {
 }
 
 async function loadNearby() {
+  const current = ++nearbyRequest;
+  if (toiletRoute) {
+    facilityMap.showFacilities([]);
+    return;
+  }
   try {
-    const result = await getFacilities(draft.origin, 5000);
+    const result = await getFacilities(draft.origin, getRadius());
+    if (current !== nearbyRequest) return;
     facilities = result.facilities;
     facilityMap.showFacilities(facilities);
     if (result.warnings.length) notify(result.warnings.join(' '));
@@ -82,7 +86,8 @@ async function useLocation() {
     draft.origin = await getLocation();
     draft.originLabel = 'Your location';
     clearResult();
-    facilityMap.setCenter(draft.origin, 5000, draft.originLabel);
+    facilityMap.setCenter(draft.origin, getRadius(), draft.originLabel);
+    facilityMap.showRadius(!toiletRoute);
     renderDraft();
     loadNearby();
   } finally {
@@ -96,7 +101,9 @@ function startPicking(mode) {
     return notify('A route can include up to 10 stops.');
   pickMode = mode;
   find('#pick-message').textContent =
-    mode === 'start' ? 'Tap the map to choose your start.' : 'Tap the map to add a route stop.';
+    mode === 'start'
+      ? 'Tap the map to choose your start.'
+      : 'Tap the map to add a route stop.';
   find('#pick-banner').hidden = false;
   facilityMap.setPicking(true);
   find('.route-map').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -113,7 +120,8 @@ function chooseMapPoint(point) {
   if (pickMode === 'start') {
     draft.origin = { lat: point.lat, lng: point.lng };
     draft.originLabel = 'Chosen map start';
-    facilityMap.setCenter(draft.origin, 5000, draft.originLabel);
+    facilityMap.setCenter(draft.origin, getRadius(), draft.originLabel);
+    facilityMap.showRadius(!toiletRoute);
     loadNearby();
   } else {
     draft.stops.push({
@@ -196,7 +204,10 @@ find('#route-stops').onclick = (event) => {
   if (remove) draft.stops.splice(Number(remove.dataset.removeStop), 1);
   if (move) {
     const index = Number(move.dataset.upStop);
-    [draft.stops[index - 1], draft.stops[index]] = [draft.stops[index], draft.stops[index - 1]];
+    [draft.stops[index - 1], draft.stops[index]] = [
+      draft.stops[index],
+      draft.stops[index - 1],
+    ];
   }
   if (remove || move) {
     clearResult();
@@ -205,18 +216,22 @@ find('#route-stops').onclick = (event) => {
 };
 
 async function start() {
-  facilityMap.setCenter(draft.origin, 5000, draft.originLabel);
+  await loadAccount();
+  find('#toilet-route-back').hidden = !toiletRoute;
+  facilityMap.setCenter(draft.origin, getRadius(), draft.originLabel);
+  facilityMap.showRadius(!toiletRoute);
   renderDraft();
   loadNearby();
   const query = new URLSearchParams(location.search);
   if (query.has('nearest')) find('#nearest-note').hidden = false;
   if (query.has('build')) {
-    history.replaceState(null, '', './routes.html');
+    history.replaceState(null, '', toiletRoute ? './routes.html?nearest=1' : './routes.html');
     if (draft.originLabel === 'Brisbane preview start') {
       try {
         await useLocation();
       } catch {
-        find('#route-message').textContent = 'Choose your start on the map, then create the route.';
+        find('#route-message').textContent =
+          'Choose your start on the map, then create the route.';
         return;
       }
     }

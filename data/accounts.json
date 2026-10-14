@@ -13,5 +13,21 @@
       "hideIssues": false
     },
     "createdAt": "2026-10-13T03:44:19.110Z"
+  },
+  {
+    "id": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "name": "Elver Gon",
+    "email": "elvergon@gmail.com",
+    "salt": "1c2fa45818b9efa8bbf1894490818b15",
+    "hash": "fbb5ac9debf1790c14081ae038a972b3452b4ff39ae03c0fb78bdd1b6653020c86b4039e791902ae029b00160ec65d51b98dff46d2e308dc6977c4199e0ba6d3",
+    "preferences": {
+      "accessible": false,
+      "unisex": false,
+      "babychange": false,
+      "bottle": false,
+      "hideIssues": false,
+      "radius": 5000
+    },
+    "createdAt": "2026-10-13T07:25:45.930Z"
   }
 ]

@@ -1,7 +1,6 @@
-// Optional legacy server. The current ParkPal pages work without Node and use
-// browser storage. The earlier JSON APIs remain here for reference/future hosting.
+// ParkPal's shared storage: serve the pages, write JSON, and store facility photos.
 import http from 'node:http';
-import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
@@ -13,18 +12,27 @@ setDefaultAutoSelectFamilyAttemptTimeout(2000);
 
 const root = dirname(fileURLToPath(import.meta.url));
 const dataDir = resolve(process.env.DATA_DIR || join(root, 'data'));
+const photosDir = join(dataDir, 'photos');
 const hashPassword = promisify(scrypt);
 const sessions = new Map();
 const attempts = new Map();
 const cache = new Map();
 const knownFacilities = new Map();
 const allowedAmenities = ['accessible', 'unisex', 'babychange', 'bottle', 'dog'];
-const problemTypes = ['Broken', 'Dirty', 'Unavailable', 'Under construction', 'Missing', 'Other'];
+const problemTypes = [
+  'Broken',
+  'Dirty',
+  'Unavailable',
+  'Under construction',
+  'Missing',
+  'Other',
+];
 const datasets = {
   toilet: { name: 'public-toilets-in-brisbane', geo: 'geopoint' },
   water: { name: 'park-drinking-fountain-tap-locations', geo: 'geo_point_2d' },
 };
 mkdirSync(dataDir, { recursive: true });
+mkdirSync(photosDir, { recursive: true });
 for (const name of ['accounts', 'submissions', 'reports']) {
   try {
     readFileSync(join(dataDir, `${name}.json`));
@@ -39,7 +47,9 @@ function read(name) {
 // Synchronous read-modify-write sections cannot interleave in this single process.
 function save(name, rows) {
   const file = join(dataDir, `${name}.json`);
-  writeFileSync(`${file}.tmp`, JSON.stringify(rows, null, 2) + '\n', { mode: 0o600 });
+  writeFileSync(`${file}.tmp`, JSON.stringify(rows, null, 2) + '\n', {
+    mode: 0o600,
+  });
   renameSync(`${file}.tmp`, file);
 }
 function fail(message, status = 400) {
@@ -62,19 +72,29 @@ function position(value) {
   return { lat: value.lat, lng: value.lng };
 }
 function preferences(value = {}) {
-  return Object.fromEntries(
+  const result = Object.fromEntries(
     ['accessible', 'unisex', 'babychange', 'bottle', 'hideIssues'].map((key) => [
       key,
       value?.[key] === true,
     ]),
   );
+  result.radius = value.radius === undefined ? 5000 : validRadius(value.radius);
+  return result;
+}
+function validRadius(value) {
+  if (!Number.isInteger(value) || value < 1000 || value > 10000 || value % 1000 !== 0)
+    fail('Choose a radius from 1 to 10 km in 1 km steps.');
+  return value;
 }
 function publicAccount(account) {
   return {
     id: account.id,
     name: account.name,
     email: account.email,
-    preferences: account.preferences,
+    preferences: {
+      ...account.preferences,
+      radius: account.preferences?.radius || 5000,
+    },
   };
 }
 function currentUser(req) {
@@ -93,18 +113,20 @@ function requireUser(req) {
 }
 function sessionCookie(req, res, userId) {
   const token = randomBytes(32).toString('hex');
-  for (const [key, session] of sessions) if (session.expires < Date.now()) sessions.delete(key);
+  for (const [key, session] of sessions)
+    if (session.expires < Date.now()) sessions.delete(key);
   sessions.set(token, { userId, expires: Date.now() + 86400000 * 7 });
   res.setHeader(
     'Set-Cookie',
     `runstop=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${process.env.SECURE_COOKIES === '1' ? '; Secure' : ''}`,
   );
 }
-async function body(req) {
+async function body(req, limit = 16384) {
   let raw = '';
+  req.setEncoding('utf8');
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 16384) fail('Submission is too large.', 413);
+    if (Buffer.byteLength(raw) > limit) fail('Submission is too large.', 413);
   }
   try {
     const value = JSON.parse(raw || '{}');
@@ -113,6 +135,44 @@ async function body(req) {
   } catch {
     fail('Send a valid JSON object.');
   }
+}
+
+// Validate every photo before writing any files. SVG and arbitrary uploads are rejected.
+function preparePhotos(photos = []) {
+  if (!Array.isArray(photos) || photos.length > 3) fail('Add at most 3 photos.');
+  return photos.map((photo) => {
+    if (typeof photo !== 'string') fail('Invalid photo.');
+    const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(photo);
+    if (!match) fail('Photos must be JPEG, PNG or WebP images.');
+    const buffer = Buffer.from(match[2], 'base64');
+    if (!buffer.length || buffer.length > 2 * 1024 * 1024)
+      fail('Each photo must be 2 MB or smaller.', 413);
+    const type = match[1];
+    const valid =
+      type === 'jpeg'
+        ? buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
+        : type === 'png'
+          ? buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+          : buffer.toString('ascii', 0, 4) === 'RIFF' &&
+            buffer.toString('ascii', 8, 12) === 'WEBP';
+    if (!valid) fail('The photo content does not match its image type.');
+    return {
+      filename: `${randomUUID()}.${type === 'jpeg' ? 'jpg' : type}`,
+      buffer,
+    };
+  });
+}
+
+function existingImport(collection, input, user) {
+  if (!input.clientId) return null;
+  if (
+    typeof input.clientId !== 'string' ||
+    !/^(community:)?[a-f0-9-]{36}$/.test(input.clientId)
+  )
+    fail('Invalid import identifier.');
+  return read(collection).find(
+    (row) => row.clientId === input.clientId && row.userId === user.id,
+  );
 }
 function json(res, status, value) {
   res.writeHead(status, {
@@ -135,7 +195,9 @@ export function normalize(row, type) {
   const point = type === 'toilet' ? row.geopoint : row.geo_point_2d;
   if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return null;
   const amenities =
-    type === 'toilet' ? ['accessible', 'unisex', 'babychange'].filter((key) => yes(row[key])) : []; // Don't infer bottle filling or accessibility from ambiguous equipment names.
+    type === 'toilet'
+      ? ['accessible', 'unisex', 'babychange'].filter((key) => yes(row[key]))
+      : []; // Don't infer bottle filling or accessibility from ambiguous equipment names.
   return {
     id: `${type}:${type === 'toilet' ? row.facilityid : row.objectid}`,
     type,
@@ -171,7 +233,9 @@ async function external(url) {
   try {
     response = await fetch(url, {
       signal: AbortSignal.timeout(20000),
-      headers: { 'User-Agent': 'RunStop/1.0 (Brisbane running facilities prototype)' },
+      headers: {
+        'User-Agent': 'RunStop/1.0 (Brisbane running facilities prototype)',
+      },
     });
   } catch {
     fail('Could not connect to the external data service. Please try again shortly.', 502);
@@ -220,7 +284,10 @@ async function findFacility(id) {
   const url = new URL(
     `https://data.brisbane.qld.gov.au/api/explore/v2.1/catalog/datasets/${datasets[type].name}/records`,
   );
-  url.searchParams.set('where', `${type === 'toilet' ? 'facilityid' : 'objectid'}="${recordId}"`);
+  url.searchParams.set(
+    'where',
+    `${type === 'toilet' ? 'facilityid' : 'objectid'}="${recordId}"`,
+  );
   url.searchParams.set('limit', '1');
   const result = await external(url);
   const facility = result.results?.[0] && normalize(result.results[0], type);
@@ -233,7 +300,9 @@ let lastRoute = 0;
 function walkingRoute(points) {
   // Respect the public routing service's one-request-per-second limit.
   const task = routeQueue.then(async () => {
-    await new Promise((done) => setTimeout(done, Math.max(0, 1100 - (Date.now() - lastRoute))));
+    await new Promise((done) =>
+      setTimeout(done, Math.max(0, 1100 - (Date.now() - lastRoute))),
+    );
     lastRoute = Date.now();
     const coordinates = points.map((point) => `${point.lng},${point.lat}`).join(';');
     const result = await external(
@@ -263,7 +332,10 @@ async function api(req, res, url) {
   if (['/api/register', '/api/login'].includes(path) && req.method === 'POST') {
     const ip = req.socket.remoteAddress;
     for (const [key, record] of attempts) if (record.until < Date.now()) attempts.delete(key);
-    const attempt = attempts.get(ip) || { count: 0, until: Date.now() + 900000 };
+    const attempt = attempts.get(ip) || {
+      count: 0,
+      until: Date.now() + 900000,
+    };
     if (++attempt.count > 30) fail('Too many sign-in attempts. Try again in 15 minutes.', 429);
     attempts.set(ip, attempt);
     const input = await body(req),
@@ -320,13 +392,13 @@ async function api(req, res, url) {
     return json(res, 200, { user: publicAccount(account) });
   }
   if (path === '/api/facilities' && req.method === 'GET') {
-    if (!url.searchParams.has('lat') || !url.searchParams.has('lng')) fail('Location is required.');
+    if (!url.searchParams.has('lat') || !url.searchParams.has('lng'))
+      fail('Location is required.');
     const center = position({
       lat: Number(url.searchParams.get('lat')),
       lng: Number(url.searchParams.get('lng')),
     });
-    const radius = Number(url.searchParams.get('radius') || 5000);
-    if (![2000, 5000, 10000].includes(radius)) fail('Choose a 2, 5, or 10 km radius.');
+    const radius = validRadius(Number(url.searchParams.get('radius') || 5000));
     const results = await Promise.allSettled(
       ['toilet', 'water'].map((type) => councilNearby(type, center, radius)),
     );
@@ -338,23 +410,31 @@ async function api(req, res, url) {
       );
       return [];
     });
+    // Council requests finish first. Always read shared submissions fresh from disk after them.
     facilities.push(...read('submissions').filter((row) => distance(center, row) <= radius));
     const reports = read('reports');
     return json(res, 200, {
       facilities: facilities.map((row) => ({
         ...row,
-        openReports: reports.filter((report) => report.facilityId === row.id && !report.resolvedAt)
-          .length,
+        openReports: reports.filter(
+          (report) => report.facilityId === row.id && !report.resolvedAt,
+        ).length,
       })),
       warnings,
     });
   }
+  if (path === '/api/submissions' && req.method === 'GET') {
+    return json(res, 200, { submissions: read('submissions') });
+  }
   if (path === '/api/submissions' && req.method === 'POST') {
     const user = requireUser(req),
-      input = await body(req),
+      input = await body(req, 9 * 1024 * 1024),
       point = position(input);
+    const existing = existingImport('submissions', input, user);
+    if (existing) return json(res, 200, { facility: existing });
     if (!['toilet', 'water'].includes(input.type)) fail('Choose a facility type.');
     if (!clean(input.name)) fail('Give this facility a name.');
+    const photos = preparePhotos(input.photos);
     const row = {
       id: `community:${randomUUID()}`,
       type: input.type,
@@ -371,15 +451,32 @@ async function api(req, res, url) {
       author: user.name,
       userId: user.id,
       createdAt: new Date().toISOString(),
+      photos: photos.map((photo) => photo.filename),
+      ...(input.clientId ? { clientId: input.clientId } : {}),
     };
     const rows = read('submissions');
     rows.push(row);
-    save('submissions', rows);
+    const written = [];
+    try {
+      for (const photo of photos) {
+        writeFileSync(join(photosDir, photo.filename), photo.buffer, {
+          flag: 'wx',
+          mode: 0o600,
+        });
+        written.push(photo.filename);
+      }
+      save('submissions', rows);
+    } catch (error) {
+      for (const filename of written) unlinkSync(join(photosDir, filename));
+      throw error;
+    }
     return json(res, 201, { facility: { ...row, openReports: 0 } });
   }
   if (path === '/api/reports' && req.method === 'GET') {
     const facilityId = url.searchParams.get('facility');
-    const reports = read('reports').filter((row) => !facilityId || row.facilityId === facilityId);
+    const reports = read('reports').filter(
+      (row) => !facilityId || row.facilityId === facilityId,
+    );
     const sorted = reports.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return json(res, 200, {
       reports: sorted.slice(0, 10),
@@ -389,6 +486,8 @@ async function api(req, res, url) {
   if (path === '/api/reports' && req.method === 'POST') {
     const user = requireUser(req),
       input = await body(req);
+    const existing = existingImport('reports', input, user);
+    if (existing) return json(res, 200, { report: existing });
     if (!problemTypes.includes(input.category)) fail('Select a problem category.');
     const facility = await findFacility(clean(input.facilityId));
     const row = {
@@ -405,6 +504,7 @@ async function api(req, res, url) {
       createdAt: new Date().toISOString(),
       resolvedAt: null,
       resolvedBy: null,
+      ...(input.clientId ? { clientId: input.clientId } : {}),
     };
     const rows = read('reports');
     rows.push(row);
@@ -428,7 +528,9 @@ async function api(req, res, url) {
     const input = await body(req);
     if (!Array.isArray(input.points) || input.points.length < 2 || input.points.length > 12)
       fail('Choose between 2 and 12 route points.');
-    return json(res, 200, { route: await walkingRoute(input.points.map(position)) });
+    return json(res, 200, {
+      route: await walkingRoute(input.points.map(position)),
+    });
   }
   fail('Not found.', 404);
 }
@@ -456,6 +558,9 @@ const publicFiles = [
   'js/routes.js',
   'js/accounts.js',
   'js/activity.js',
+  'js/api.js',
+  'js/migration.js',
+  'js/photos.js',
 ];
 const staticFiles = new Map(publicFiles.map((file) => [`/public/${file}`, `public/${file}`]));
 staticFiles.set('/', 'index.html');
@@ -467,6 +572,26 @@ export const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
+    if (
+      /^\/photos\/[a-f0-9-]{36}\.(jpg|png|webp)$/.test(url.pathname) &&
+      ['GET', 'HEAD'].includes(req.method)
+    ) {
+      const filename = url.pathname.slice('/photos/'.length);
+      let photo;
+      try {
+        photo = readFileSync(join(photosDir, filename));
+      } catch (error) {
+        if (error.code === 'ENOENT') fail('Photo not found.', 404);
+        throw error;
+      }
+      const extension = filename.split('.').pop();
+      res.writeHead(200, {
+        'Content-Type': `image/${extension === 'jpg' ? 'jpeg' : extension}`,
+        'Content-Length': photo.length,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      });
+      return res.end(req.method === 'HEAD' ? undefined : photo);
+    }
     const file = staticFiles.get(url.pathname);
     if (!file || !['GET', 'HEAD'].includes(req.method)) fail('Not found.', 404);
     const content = readFileSync(join(root, file));

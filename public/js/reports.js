@@ -3,7 +3,7 @@ import { escapeHTML, titleCase, formatDate, pageURL } from './helpers.js';
 
 export function reportsHTML(reports, showFacilityName = true) {
   if (!reports.length)
-    return '<p class="empty-state">No reports yet on this browser. Spot a problem? Add a report from a facility.</p>';
+    return '<p class="empty-state">No reports yet. Spot a problem? Add a report from a facility.</p>';
   return reports
     .map(
       (report) => `
