@@ -20,9 +20,10 @@ import {
   loadAccount,
   getRadius,
   getPreferences,
+  getRunningSpeed,
 } from './storage.js';
 import { apiRequest } from './api.js';
-import { getFacilities } from './services.js';
+import { getFacilities, previewWalkingRoute } from './services.js';
 import { FacilityMap } from './map.js';
 import { setupFacilityDetails } from './facility-details.js';
 import { readRoute, saveRoute } from './route-state.js';
@@ -45,11 +46,15 @@ const state = {
 let requestNumber = 0;
 let nearestMode = false;
 let nearestRequest = 0;
+let previewRequest = 0;
+let toiletChoices = [];
+let findingToilets = false;
+let choosingToilet = false;
 let previousArea = null;
 const details = setupFacilityDetails(refreshReports);
 const facilityMap = new FacilityMap(
   (facility) => {
-    if (!state.picking) details.open(facility);
+    if (!state.picking) chooseFacility(facility);
   },
   (point) => {
     if (state.picking) finishPin(point);
@@ -69,7 +74,7 @@ function matchesPreferences(facility) {
   return keys.every((key) => !preferences[key] || facility.amenities.includes(key));
 }
 
-function visibleFacilities() {
+function matchingFacilities() {
   return state.facilities
     .filter((facility) => {
       const matchesType = nearestMode
@@ -78,19 +83,49 @@ function visibleFacilities() {
       const matchesSearch = `${facility.name} ${facility.address}`
         .toLowerCase()
         .includes(state.search);
-      return matchesType && (nearestMode || matchesSearch) && matchesPreferences(facility);
+      return (
+        matchesType && (nearestMode || matchesSearch) && matchesPreferences(facility)
+      );
     })
     .sort(
       (first, second) =>
         distanceBetween(state.center, first) - distanceBetween(state.center, second),
-    )
-    .slice(0, nearestMode ? 3 : undefined);
+    );
+}
+
+function visibleFacilities() {
+  return nearestMode
+    ? toiletChoices.map((choice) => choice.facility)
+    : matchingFacilities();
+}
+
+function chooseFacility(facility) {
+  if (!nearestMode) return details.open(facility);
+  if (
+    choosingToilet ||
+    !toiletChoices.some((choice) => choice.facility.id === facility.id)
+  )
+    return;
+  choosingToilet = true;
+  previewRequest++; // Stop the remaining candidate search as soon as a toilet is chosen.
+  nearestRequest++;
+  saveRoute({
+    origin: { ...state.center },
+    originLabel: 'Your location',
+    stops: [
+      { id: facility.id, name: facility.name, lat: facility.lat, lng: facility.lng },
+    ],
+    roundTrip: false,
+  });
+  location.href = pageURL('routes.html?build=1&nearest=1&autostart=1');
 }
 
 function renderFacilities() {
   const facilities = visibleFacilities();
   find('#facility-count').textContent = nearestMode
-    ? `${facilities.length} closest matching toilets within ${state.radius / 1000} km`
+    ? findingToilets
+      ? `Finding reachable toilets… ${facilities.length} found`
+      : `${facilities.length} reachable toilets within ${state.radius / 1000} km`
     : `${facilities.length} nearby stops`;
   find('#data-warning').textContent = state.warnings.join(' ');
   find('#data-warning').hidden = !state.warnings.length;
@@ -110,7 +145,7 @@ function renderFacilities() {
   `,
       )
       .join('') ||
-    '<p class="empty-state">No matching stops. Try a larger radius or change your preferences.</p>';
+    `<p class="empty-state">${nearestMode && findingToilets ? 'Checking routes…' : nearestMode ? 'No reachable matching toilets found. Try a larger radius or retry.' : 'No matching stops. Try a larger radius or change your preferences.'}</p>`;
   if (facilities.length > shown.length) {
     find('#facility-list').insertAdjacentHTML(
       'beforeend',
@@ -122,6 +157,52 @@ function renderFacilities() {
     };
   }
   facilityMap.showFacilities(facilities, !nearestMode);
+  if (nearestMode) facilityMap.showRouteChoices(toiletChoices, getRunningSpeed());
+}
+
+async function loadToiletPreviews(facilities) {
+  const current = ++previewRequest;
+  const origin = { ...state.center };
+  toiletChoices = [];
+  findingToilets = true;
+  renderFacilities();
+  // Check candidates in distance order until three valid paths are found or the radius is exhausted.
+  for (const facility of facilities) {
+    if (!nearestMode || current !== previewRequest) return;
+    let route;
+    try {
+      route = await previewWalkingRoute([origin, facility]);
+    } catch (error) {
+      if (!nearestMode || current !== previewRequest) return;
+      if (error.status === 422) continue; // No pedestrian path: try the next toilet.
+      state.warnings.push(
+        'Route service unavailable. Some toilets could not be checked. Retry to continue.',
+      );
+      break;
+    }
+    if (!nearestMode || current !== previewRequest) return;
+    toiletChoices.push({ facility, route, loading: false });
+    renderFacilities();
+    if (toiletChoices.length === 3) break;
+  }
+  if (!nearestMode || current !== previewRequest) return;
+  findingToilets = false;
+  renderFacilities();
+  const choices = toiletChoices;
+  if (choices.some((choice) => choice.route) && facilityMap.map) {
+    const bounds = L.latLngBounds([origin.lat, origin.lng], [origin.lat, origin.lng]);
+    for (const choice of choices) {
+      bounds.extend([choice.facility.lat, choice.facility.lng]);
+      if (choice.route)
+        for (const [lng, lat] of choice.route.geometry.coordinates)
+          bounds.extend([lat, lng]);
+    }
+    facilityMap.map.fitBounds(bounds, {
+      paddingTopLeft: [100, 180],
+      paddingBottomRight: [100, 180],
+      maxZoom: 16,
+    });
+  }
 }
 
 async function loadFacilities() {
@@ -135,7 +216,8 @@ async function loadFacilities() {
     state.warnings = result.warnings;
     if (nearestMode && state.warnings.some((warning) => /toilet/i.test(warning)))
       state.facilities = [];
-    renderFacilities();
+    if (nearestMode) await loadToiletPreviews(matchingFacilities());
+    else renderFacilities();
     if (state.warnings.length) notify(state.warnings.join(' '));
     return true;
   } catch (error) {
@@ -184,6 +266,8 @@ async function nearestToilet() {
   if (nearestMode) return;
   previousArea = { center: state.center, centerLabel: state.centerLabel };
   nearestMode = true;
+  toiletChoices = [];
+  choosingToilet = false;
   const current = ++nearestRequest;
   requestNumber++; // Ignore an older area request that finishes after this switch.
   document.body.classList.add('nearest-mode');
@@ -203,10 +287,9 @@ async function nearestToilet() {
     const loaded = await loadFacilities();
     if (current !== nearestRequest || !loaded) return;
     const toilets = visibleFacilities();
-    facilityMap.frameChoices(toilets, point);
     notify(
       toilets.length
-        ? 'Select a toilet pin or open the list to create a route.'
+        ? 'Tap a toilet pin, bubble or list entry to start your route.'
         : 'No matching toilets available in this radius. Go back to change your radius or retry.',
     );
   } catch (error) {
@@ -220,9 +303,13 @@ async function nearestToilet() {
 }
 
 function leaveNearestMode() {
+  previewRequest++;
+  facilityMap.clearRouteChoices();
   nearestRequest++;
   requestNumber++;
   nearestMode = false;
+  toiletChoices = [];
+  findingToilets = false;
   document.body.classList.remove('nearest-mode');
   find('#nearest-back').hidden = true;
   find('#nearest-toilet').disabled = false;
@@ -271,9 +358,9 @@ find('#toggle-sheet').addEventListener(
 
 function updateAmenities() {
   const toilet = find('#add-form [name=type]').value === 'toilet';
-  const keys = toilet
-    ? ['accessible', 'unisex', 'babychange']
-    : ['accessible', 'bottle', 'dog'];
+  const keys = toilet ? ['accessible', 'babychange'] : ['accessible', 'bottle', 'dog'];
+  find('#add-toilet-details').hidden = !toilet;
+  find('#add-toilet-details').disabled = !toilet;
   find('#add-amenities').innerHTML = keys
     .map(
       (key) => `
@@ -301,13 +388,15 @@ function finishPin(point) {
   document.body.classList.remove('picking');
   if (point) {
     state.pin = { lat: point.lat, lng: point.lng };
-    find('#pin-description').textContent = `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+    find('#pin-description').textContent =
+      `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
   }
   find('#add-dialog').showModal();
 }
 
 find('#add-map-location').onclick = () => {
-  if (!facilityMap.map) return notify('The map is unavailable. Try using your location.');
+  if (!facilityMap.map)
+    return notify('The map is unavailable. Try using your location.');
   find('#add-dialog').close();
   setSheetExpanded(false);
   state.picking = true;
@@ -339,6 +428,24 @@ handleForm(find('#add-form'), async (form) => {
     name: form.get('name').trim(),
     ...state.pin,
     amenities: form.getAll('amenity'),
+    ...(form.get('type') === 'toilet'
+      ? {
+          toiletDetails: {
+            ...Object.fromEntries(
+              ['male', 'female', 'unisex', 'allgender'].map((key) => [
+                key,
+                form.getAll('toiletType').includes(key) ? true : null,
+              ]),
+            ),
+            shower:
+              form.get('shower') === 'yes'
+                ? true
+                : form.get('shower') === 'no'
+                  ? false
+                  : null,
+          },
+        }
+      : {}),
     description: form.get('description').trim(),
     hours: form.get('hours').trim() || 'Opening hours not provided',
   });
@@ -394,7 +501,7 @@ find('#facility-list').onclick = (event) => {
   const button = event.target.closest('[data-facility]');
   if (!button) return;
   const facility = state.facilities.find((item) => item.id === button.dataset.facility);
-  if (facility) details.open(facility);
+  if (facility) chooseFacility(facility);
 };
 
 // Search only on submit, not every keystroke. Choosing a result reloads that area.
@@ -409,7 +516,9 @@ find('#place-search').onsubmit = async (event) => {
   find('#place-status').textContent = 'Searching Brisbane places…';
   try {
     placeResults = (
-      await apiRequest(`search?q=${encodeURIComponent(find('#place-query').value.trim())}`)
+      await apiRequest(
+        `search?q=${encodeURIComponent(find('#place-query').value.trim())}`,
+      )
     ).places;
     find('#place-status').textContent = placeResults.length
       ? 'Choose a place to explore nearby facilities.'
@@ -478,7 +587,9 @@ async function start() {
   if (!hasMapLink && !sessionStorage.getItem('parkpal.locationAsked')) {
     sessionStorage.setItem('parkpal.locationAsked', 'yes');
     locate().catch(() =>
-      notify('Showing a Brisbane preview. Use the location button or choose a route start.'),
+      notify(
+        'Showing a Brisbane preview. Use the location button or choose a route start.',
+      ),
     );
   }
 }

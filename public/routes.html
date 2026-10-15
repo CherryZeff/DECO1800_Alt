@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#1c211e" />
     <meta
       name="description"
@@ -54,6 +57,22 @@
           >← Back to toilets</a
         >
         <div id="map" aria-label="Interactive facility map"></div>
+        <div id="run-metrics" class="run-metrics" hidden aria-label="Route statistics">
+          <div>
+            <span id="run-time-label">Estimated time</span
+            ><strong id="run-time">0 min</strong>
+          </div>
+          <div>
+            <span>Running speed</span><strong id="run-speed">10 km/h</strong
+            ><small id="run-speed-note">Your setting</small>
+          </div>
+        </div>
+        <div id="run-controls" class="run-controls" hidden>
+          <button id="run-locate" class="secondary">
+            <svg class="icon"><use href="./icons.svg#i-target" /></svg>Locate me
+          </button>
+          <button id="end-run" class="primary">End route</button>
+        </div>
         <p id="map-error" class="notice map-error" hidden>
           The map could not load. Check your connection and reload.
         </p>
@@ -64,17 +83,15 @@
       </section>
       <div class="route-tools">
         <section id="route-panel" class="panel">
-          <div class="eyebrow">MAKE EVERY STOP COUNT</div>
-          <h1>
-            Plan your
-            <span>next run.</span>
-          </h1>
-          <p class="intro">Build a walking route, with room for a water break.</p>
+          <h1>Plan your run</h1>
+          <p class="intro compact">Choose a start. Add stops. Go.</p>
           <div class="route-start">
             <span class="live-dot"></span>
             <div>
               <strong id="route-origin">Brisbane preview start</strong>
-              <small id="route-origin-detail">Use GPS or choose a start on the map.</small>
+              <small id="route-origin-detail"
+                >Use GPS or choose a start on the map.</small
+              >
             </div>
           </div>
           <div class="button-row">
@@ -89,10 +106,7 @@
             <span id="stop-count" class="count-badge">0</span>
           </h2>
           <ol id="route-stops" class="route-stops"></ol>
-          <p id="route-empty" class="empty-state">
-            Choose facilities on the map, or drop a pin for your destination. Stops are visited
-            in the order shown.
-          </p>
+          <p id="route-empty" class="empty-state">Tap a facility or add a map pin.</p>
           <div class="button-row">
             <button id="pick-stop" class="secondary">
               <svg class="icon"><use href="./icons.svg#i-plus" /></svg>
@@ -106,18 +120,18 @@
           </label>
           <button id="build-route" class="primary full">
             <svg class="icon"><use href="./icons.svg#i-route" /></svg>
-            Create walking route
+            Preview route
           </button>
-          <button id="clear-route" class="text-button refresh-button">Clear route</button>
+          <button id="clear-route" class="text-button refresh-button">
+            Clear route
+          </button>
           <p id="route-message" class="form-error" role="alert"></p>
-          <p id="nearest-note" class="notice" hidden>
-            You chose one of the closest matching toilets by straight-line distance. Check
-            opening hours and access before heading out.
-          </p>
+          <p id="nearest-note" class="notice" hidden>Toilet stop selected.</p>
           <div id="route-result" hidden></div>
+          <p id="run-summary" role="status"></p>
           <p class="fine-print">
-            Routes follow mapped walking paths. Check access and opening hours before heading
-            out. Route points are sent to the public OSRM walking service.
+            Uses pedestrian paths, with ferries only when enabled. Follow local signs
+            and crossings.
           </p>
         </section>
       </div>
@@ -197,7 +211,9 @@
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
     <noscript>
-      <p class="noscript">Enable JavaScript to use ParkPal’s map and account features.</p>
+      <p class="noscript">
+        Enable JavaScript to use ParkPal’s map and account features.
+      </p>
     </noscript>
   </body>
 </html>

@@ -4,18 +4,18 @@ import {
   icon,
   escapeHTML,
   titleCase,
-  formatDistance,
   notify,
   getLocation,
   setupDialogs,
   formatDate,
+  routeEstimate,
 } from './helpers.js';
 import { getFacilities, getWalkingRoute } from './services.js';
 import { FacilityMap } from './map.js';
 import { readRoute, saveRoute } from './route-state.js';
 import { setupFacilityDetails } from './facility-details.js';
 
-import { loadAccount, getRadius, getPastRoutes } from './storage.js';
+import { loadAccount, getRadius, getPastRoutes, getRunningSpeed } from './storage.js';
 
 const toiletRoute = new URLSearchParams(location.search).has('nearest');
 let draft = readRoute();
@@ -23,6 +23,10 @@ let facilities = [];
 let pickMode = null;
 let requestNumber = 0;
 let loadingRoute = false;
+let currentRoute = null;
+let startedAt = null;
+let timerInterval;
+let runSession = 0;
 let nearbyRequest = 0;
 const details = setupFacilityDetails(loadNearby, () => {
   draft = readRoute();
@@ -31,12 +35,14 @@ const details = setupFacilityDetails(loadNearby, () => {
   notify('Stop added to your route.');
 });
 const facilityMap = new FacilityMap((facility) => {
-  if (!pickMode) details.open(facility);
+  if (!pickMode && startedAt === null) details.open(facility);
 }, chooseMapPoint);
 setupDialogs();
 
 function clearResult() {
   requestNumber++;
+  currentRoute = null;
+  find('#run-metrics').hidden = true;
   facilityMap.clearRoute();
   find('#route-result').hidden = true;
   find('#route-message').textContent = '';
@@ -72,7 +78,7 @@ async function loadNearby() {
   }
   try {
     const result = await getFacilities(draft.origin, getRadius());
-    if (current !== nearbyRequest) return;
+    if (current !== nearbyRequest || startedAt !== null) return;
     facilities = result.facilities;
     facilityMap.showFacilities(facilities);
     if (result.warnings.length) notify(result.warnings.join(' '));
@@ -137,43 +143,120 @@ function chooseMapPoint(point) {
   notify('Route updated. Create your route when ready.');
 }
 
-function instruction(step) {
-  let text = step.maneuver.type.replaceAll('_', ' ');
-  text = text[0].toUpperCase() + text.slice(1);
-  if (step.maneuver.modifier) text += ` ${step.maneuver.modifier}`;
-  if (step.name) text += ` onto ${step.name}`;
-  return text;
+function elapsedTime() {
+  const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds / 60) % 60;
+  return `${hours ? String(hours).padStart(2, '0') + ':' : ''}${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function showEstimate() {
+  const estimate = routeEstimate(currentRoute, getRunningSpeed());
+  find('#run-time-label').textContent = estimate.hasFerry
+    ? 'Est. + ferry'
+    : 'Estimated time';
+  find('#run-time').textContent =
+    estimate.minutes === null ? 'Unknown' : `~${estimate.minutes} min`;
+  find('#run-speed-note').textContent = estimate.hasFerry
+    ? 'Set speed · ferry'
+    : 'Your setting';
+  find('#run-speed').textContent = `${getRunningSpeed()} km/h`;
+  find('#run-metrics').hidden = false;
 }
 
 function showResult(route, message) {
+  currentRoute = route;
   facilityMap.showRoute(route);
-  const steps = route.legs
-    .flatMap((leg) => leg.steps)
-    .filter((step) => step.distance > 0);
+  showEstimate();
   const offsetPin = route.waypoints?.some((point) => point.distance > 30);
   find('#route-result').innerHTML = `
-      <div class="route-stats">
-        <div><strong>${(route.distance / 1000).toFixed(2)} km</strong><span>Total distance</span></div>
-        <div><strong>${Math.max(1, Math.round(route.duration / 60))} min</strong><span>Walking time</span></div>
-      </div>
-      <p>${escapeHTML(message)}</p>
-      <p>${draft.stops.length} stops · ${draft.roundTrip ? 'Return to start' : 'One way'}</p>
-      ${offsetPin ? '<p class="notice">Some pins are offset from the mapped path. Check the final approach to each stop.</p>' : ''}
-      <details><summary>Walking directions</summary><ol class="directions">
-        ${steps.map((step) => `<li>${escapeHTML(instruction(step))} <strong>${formatDistance(step.distance)}</strong></li>`).join('')}
-      </ol></details>
-      <p class="fine-print">Walking-only route preview. Follow local signs and crossings; map access data may be incomplete. <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">OSRM / FOSSGIS</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fix the map</a></p>`;
+    <p class="preview-distance"><strong>${(route.distance / 1000).toFixed(2)} km</strong> · ${draft.stops.length} stops</p>
+    ${routeEstimate(route, getRunningSpeed()).hasFerry ? '<p class="notice">Includes a ferry. Check departures and access. Estimated time excludes waiting.</p>' : ''}
+    ${offsetPin ? '<p class="notice">Some pins are offset from the path. Check the final approach.</p>' : ''}
+    <button id="start-run" class="primary full">Start run</button>
+    <p class="fine-print">${escapeHTML(message)}</p>`;
   find('#route-result').hidden = false;
+  find('#start-run').onclick = startRun;
 }
 
-async function buildRoute() {
+function startRun() {
+  if (!currentRoute || !facilityMap.map || startedAt !== null) return;
+  endPicking();
+  startedAt = Date.now();
+  find('#toast').hidden = true;
+  runSession++;
+  nearbyRequest++; // Ignore any facility load still in flight.
+  document.body.classList.add('run-active');
+  facilityMap.showFacilities([]);
+  facilityMap.showRadius(false);
+  find('#run-controls').hidden = false;
+  find('#run-time-label').textContent = 'Elapsed time';
+  find('#run-summary').textContent = '';
+  find('#run-time').textContent = elapsedTime();
+  // Use the start timestamp so backgrounded tabs catch up when they resume.
+  timerInterval = setInterval(() => {
+    find('#run-time').textContent = elapsedTime();
+  }, 1000);
+  requestAnimationFrame(() => {
+    facilityMap.map.invalidateSize();
+    facilityMap.showRoute(currentRoute);
+    find('#end-run').focus({ preventScroll: true });
+  });
+}
+
+function endRun() {
+  if (startedAt === null) return;
+  const elapsed = elapsedTime();
+  clearInterval(timerInterval);
+  startedAt = null;
+  runSession++;
+  document.body.classList.remove('run-active');
+  find('#run-controls').hidden = true;
+  find('#run-locate').disabled = false;
+  facilityMap.clearCurrentLocation();
+  facilityMap.showRadius(!toiletRoute);
+  showEstimate();
+  find('#run-summary').textContent = `Route ended · ${elapsed} elapsed`;
+  loadNearby();
+  requestAnimationFrame(() => {
+    facilityMap.map?.invalidateSize();
+    facilityMap.showRoute(currentRoute);
+    find('#start-run').focus({ preventScroll: true });
+  });
+}
+
+find('#end-run').onclick = endRun;
+find('#run-locate').onclick = async () => {
+  const session = runSession;
+  find('#run-locate').disabled = true;
+  try {
+    const point = await getLocation();
+    if (startedAt !== null && session === runSession)
+      facilityMap.showCurrentLocation(point);
+  } catch (error) {
+    if (startedAt !== null && session === runSession) notify(error.message);
+  } finally {
+    if (session === runSession) find('#run-locate').disabled = false;
+  }
+};
+window.addEventListener('pagehide', () => clearInterval(timerInterval));
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted && startedAt !== null) {
+    find('#run-time').textContent = elapsedTime();
+    timerInterval = setInterval(() => {
+      find('#run-time').textContent = elapsedTime();
+    }, 1000);
+  }
+});
+
+async function buildRoute(autoStart = false) {
   if (loadingRoute) return;
   if (!draft.stops.length) return notify('Add a facility or map stop first.');
   clearResult();
   const currentRequest = requestNumber;
   loadingRoute = true;
   find('#build-route').disabled = true;
-  find('#build-route').textContent = 'Finding a walking route…';
+  find('#build-route').textContent = 'Finding paths…';
   try {
     const points = [draft.origin, ...draft.stops];
     if (draft.roundTrip) points.push(draft.origin);
@@ -183,10 +266,11 @@ async function buildRoute() {
     showResult(
       route,
       result.savedRouteId
-        ? 'Saved to Past routes. Facility stops are marked visited.'
+        ? 'Points saved to Past routes.'
         : 'Sign in to keep this route in Past routes.',
     );
-    notify('Your walking route is ready.');
+    if (autoStart === true) startRun();
+    else notify('Route ready. Tap Start run.');
   } catch (error) {
     if (currentRequest === requestNumber)
       find('#route-message').textContent = error.message;
@@ -194,7 +278,7 @@ async function buildRoute() {
   } finally {
     loadingRoute = false;
     find('#build-route').disabled = false;
-    find('#build-route').innerHTML = `${icon('route')}Create walking route`;
+    find('#build-route').innerHTML = `${icon('route')}Preview route`;
   }
 }
 
@@ -213,7 +297,7 @@ find('#clear-route').onclick = () => {
   clearResult();
   renderDraft();
 };
-find('#build-route').onclick = buildRoute;
+find('#build-route').onclick = () => buildRoute();
 find('#route-stops').onclick = (event) => {
   const remove = event.target.closest('[data-remove-stop]');
   const move = event.target.closest('[data-up-stop]');
@@ -249,7 +333,7 @@ async function start() {
     // Restore the original start, even when the runner's current GPS location differs.
     facilityMap.frameChoices(draft.stops, draft.origin);
     find('#route-message').textContent =
-      `Points saved ${formatDate(saved.createdAt)} loaded. Edit them or tap Create walking route for new directions.`;
+      `Points saved ${formatDate(saved.createdAt)} loaded. Tap Preview route when ready.`;
   }
   if (query.has('nearest')) find('#nearest-note').hidden = false;
   if (query.has('build') && !saved) {
@@ -267,7 +351,7 @@ async function start() {
         return;
       }
     }
-    buildRoute();
+    await buildRoute(query.get('autostart') === '1');
   }
 }
 start().catch((error) => notify(error.message));

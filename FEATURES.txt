@@ -1,5 +1,5 @@
 PARKPAL — CURRENT FEATURE REPORT
-Updated: 14 October 2026
+Updated: 15 October 2026
 Maintenance: update this file whenever features or storage behaviour change.
 
 PURPOSE AND STRUCTURE
@@ -25,6 +25,10 @@ HOME MAP
 - Council responses are cached for five minutes; submissions are not cached.
 - Shows clustered facility markers, open-report indicators, facility details,
   amenity tags, descriptions, supplied opening hours and uploaded photos.
+- Toilet details show Council shower availability and Male/Female, Unisex and
+  Gender-neutral (allgender) flags independently; several types may apply.
+  Missing shower values display Not recorded, distinct from confirmed No.
+  Community records without these fields remain unknown.
 - Filters toilets/water/all, searches names/addresses, and applies preferences.
 - Expandable bottom sheet works by tap or handle swipe and lists nearby stops
   in distance order, with a Show more control for larger result sets.
@@ -32,14 +36,22 @@ HOME MAP
 
 CLOSEST TOILETS
 - Circular toilet action in the bottom navigation works from every page.
-- Obtains the user's location and shows up to three matching toilets within the
-  saved radius, ordered by straight-line distance, including community toilets.
-- Hides other facility markers and normal exploration controls during selection.
-- Displays individual toilet pins and a selectable list. Route here creates a
-  walking route to the selected toilet; it does not automatically choose one.
+- Obtains the user's location and checks matching toilets in straight-line
+  distance order within the saved radius, including community toilets.
+- Skips toilets without a validated pedestrian path and tries the next candidate
+  until three reachable choices are found or all candidates have been checked.
+  General network/service failures stop the search with a retry message.
+- Shows only confirmed reachable toilet pins, list entries and orange dotted paths,
+  with a distance/running-time bubble for each. Results appear as they are found.
+- Tapping a toilet pin, bubble or list entry opens its route and automatically starts
+  the full-screen run/timer after successful route revalidation. It uses the location
+  captured when toilet mode began. A failed route never starts a run or saves a plan.
+- Comparison requests never save routes or mark visits. Back clears the lines
+  and bubbles; stale requests cannot restore them after leaving or choosing a toilet.
+- Normal exploration still opens facility details when a facility is selected.
 - Top-left back button restores exploration. Route page links back to choices.
 - Respects toilet preferences and optionally excludes unresolved problems.
-- Shows fewer than three when fewer qualify. Reports GPS/data failures clearly.
+- Shows fewer than three when fewer reachable matches qualify. Reports GPS/data failures clearly.
 - Does not calculate the shortest walking distance to every possible toilet or
   verify that a facility is currently open.
 
@@ -49,8 +61,14 @@ ROUTES
 - Add up to ten facilities or manually placed stops, reorder or remove them,
   clear the route, and optionally return to the start.
 - Request walking-route alternatives from the OSRM/FOSSGIS foot service.
-- Only return a route if every step explicitly uses walking mode. Reject ferry,
-  driving, train and unknown modes, plus reported motorway/restricted classes.
+- Default to walking-only paths. Allow ferries is an opt-in route preference:
+  when enabled, every step must be walking or ferry. Always reject driving,
+  bus, train and unknown modes, plus motorway/restricted/tunnel-shuttle classes.
+- Ferry routes are labelled. Their estimate combines running time on pedestrian
+  segments with provider ferry duration, excluding waiting. Missing duration
+  produces an unknown estimate. The elapsed timer includes all time after Start.
+- The provider supports foot/ferry routes, not bus/train itineraries or timetables.
+  No public-transport scheduling or guaranteed ferry service availability.
 - If no returned alternative passes, show an error; do not display or save it.
 - This does not guarantee that a ferry-free alternative will be found or that
   all OSM access tags are complete. Legal roadside footpaths/crossings are allowed.
@@ -59,14 +77,24 @@ ROUTES
 - Past routes shows saved dates and stops. Reuse route restores the original start
   and ordered points to the map, without substituting the current GPS location.
   Reuse alone does not fetch directions, save another plan or record visits.
-  Edit the points or tap Create walking route to calculate a new walking path;
+  Edit the points or tap Preview route to calculate a new walking path;
   successful creation saves a new plan and marks facility stops visited as usual.
   Paths may change with map data; these plans are not recorded completed runs.
-- Draw the returned route line on Leaflet; display distance, estimated walking
-  time and turn instructions, plus an offset-pin warning when applicable.
-- Route errors are displayed without substituting an invented path.
+- Compact planner: start, ordered stops, return option, Preview route, Start run.
+- Draw the route and show estimated running time (distance / configured speed),
+  distance and speed. Keep the offset-pin warning when applicable.
+- Start run fills the browser viewport with the map, elapsed timer and configured
+  running speed at the top, and Locate me / End route at the bottom. It does not
+  require the device Fullscreen API. Works on phone and desktop.
+- Timer uses a start timestamp and catches up after backgrounding. End route
+  stops it, returns to planning, and shows elapsed time. Reloading or closing the
+  page resets it. Elapsed time is not saved as completed-run data.
+- Locate me requests GPS once and shows a current-position marker without moving
+  the original route start or changing saved stops. GPS errors leave the run active.
+- No continuous GPS tracking, live measured speed, automatic rerouting or spoken
+  turn-by-turn navigation. The displayed speed is explicitly labelled Your setting.
+- Failed routing shows an error, with no invented path and no Start run action.
 - Route draft persists within the current browser tab across page navigation.
-- Route planning only: no live navigation, run recording or background tracking.
 
 MORE, ACCOUNTS AND SETTINGS
 - More offers Account, Settings and Log out (when signed in).
@@ -84,10 +112,23 @@ MORE, ACCOUNTS AND SETTINGS
 - Guest radius and facility preferences remain browser-local; account preferences
   are stored in accounts.json.
 - No email verification, password recovery or account administration interface.
+- Route preferences includes Allow ferries, off by default. Applies to the planner,
+  toilet candidate searches and automatic starts. Saved with the account or locally
+  for guests; existing accounts default off. Saved points use the current setting.
+- Approximate running-speed slider: 6–20 km/h, 0.5 km/h steps, default 10.
+  Signed-in values are stored with account preferences; guest values are local.
+  Used by route and nearest-toilet estimates; existing accounts default to 10.
 
 FACILITY SUBMISSIONS AND PHOTOS
 - Signed-in users select toilet or drinking water, enter a name and amenities,
   and optionally supply a description and opening hours.
+- Toilet contributions include shower availability (Yes, No or Not sure) and
+  multi-select Male, Female, Unisex and Gender-neutral (all-gender) types.
+  Selecting Male and Female records both. Unselected types remain unknown.
+  Toilet-only fields are hidden/disabled for water submissions.
+- Toilet details are validated and saved with the submission, survive reloads,
+  and appear in facility details. Unisex also updates the amenity used by filters.
+  Older submissions remain supported; unknown showers are not shown as No.
 - Place a map pin or use current GPS position.
 - Add up to three optional JPEG, PNG or WebP photos, at most 2 MB each.
 - Preview photos before submission; server validates type/signature/size limits.

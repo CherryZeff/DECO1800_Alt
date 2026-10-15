@@ -2,6 +2,28 @@
   {
     "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
     "facility": {
+      "id": "toilet:4510",
+      "type": "toilet",
+      "name": "Toowong Railway Station",
+      "lat": -27.48540954,
+      "lng": 152.9931967,
+      "amenities": [
+        "accessible",
+        "babychange"
+      ],
+      "address": "Sherwood Road, Toowong",
+      "hours": "OPEN: Sat 6am-3pm, Mon-Fri 5:15am-6:30pm, Sun 6am-2pm",
+      "description": "",
+      "restrictions": [],
+      "source": "Brisbane City Council",
+      "createdAt": null
+    },
+    "createdAt": "2026-10-14T12:18:31.270Z",
+    "source": "route"
+  },
+  {
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "facility": {
       "id": "community:e9b54048-e12b-4f12-8c0a-56ea60087582",
       "type": "toilet",
       "name": "Riverside Bathroom",
@@ -21,29 +43,52 @@
       "userId": "d34e4cc2-84a9-435a-899e-f14b1a638d44",
       "createdAt": "2026-10-13T03:48:59.085Z"
     },
-    "createdAt": "2026-10-14T12:15:44.875Z",
+    "createdAt": "2026-10-15T02:39:47.119Z",
     "source": "route"
   },
   {
     "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
     "facility": {
-      "id": "toilet:4510",
+      "id": "toilet:55155",
       "type": "toilet",
-      "name": "Toowong Railway Station",
-      "lat": -27.48540954,
-      "lng": 152.9931967,
+      "name": "University of Queensland",
+      "lat": -27.4943513,
+      "lng": 153.0065643,
       "amenities": [
-        "accessible",
-        "babychange"
+        "accessible"
       ],
-      "address": "Sherwood Road, Toowong",
-      "hours": "OPEN: Sat 6am-3pm, Mon-Fri 5:15am-6:30pm, Sun 6am-2pm",
+      "address": "280-284 Sir Fred Schonell Drive, St Lucia",
+      "hours": "OPEN: 8am-11pm",
       "description": "",
       "restrictions": [],
       "source": "Brisbane City Council",
       "createdAt": null
     },
-    "createdAt": "2026-10-14T12:18:31.270Z",
+    "createdAt": "2026-10-15T02:46:09.481Z",
     "source": "route"
+  },
+  {
+    "userId": "0f60c844-d9b1-4d88-a971-c469a59326a2",
+    "facility": {
+      "id": "community:e9b54048-e12b-4f12-8c0a-56ea60087582",
+      "type": "toilet",
+      "name": "Riverside Bathroom",
+      "lat": -27.492349756976182,
+      "lng": 153.00584077835086,
+      "amenities": [
+        "accessible",
+        "unisex",
+        "babychange"
+      ],
+      "description": "",
+      "address": "",
+      "hours": "Opening hours not provided",
+      "restrictions": [],
+      "source": "Community",
+      "author": "Elver Galarga",
+      "userId": "d34e4cc2-84a9-435a-899e-f14b1a638d44",
+      "createdAt": "2026-10-13T03:48:59.085Z"
+    },
+    "createdAt": "2026-10-15T02:58:28.299Z"
   }
 ]

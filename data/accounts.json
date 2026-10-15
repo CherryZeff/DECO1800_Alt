@@ -1,20 +1,5 @@
 [
   {
-    "id": "d34e4cc2-84a9-435a-899e-f14b1a638d44",
-    "name": "Elver Galarga",
-    "email": "elvergalarga@gmail.com",
-    "salt": "2e7b4580679225099e1c954043ecddb9",
-    "hash": "d99185855e5bfddda6b0f75908fe1a292d4b2b63f73cca5274b99b53314052260c12f71b5c5695ffa2d413bc5cac404dc962071fe225234560ecddf95775931b",
-    "preferences": {
-      "accessible": true,
-      "unisex": false,
-      "babychange": false,
-      "bottle": false,
-      "hideIssues": false
-    },
-    "createdAt": "2026-10-13T03:44:19.110Z"
-  },
-  {
     "id": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
     "name": "Elver Gon",
     "email": "elvergon@gmail.com",
@@ -29,5 +14,21 @@
       "radius": 3000
     },
     "createdAt": "2026-10-13T07:25:45.930Z"
+  },
+  {
+    "id": "0f60c844-d9b1-4d88-a971-c469a59326a2",
+    "name": "Juanito Perez",
+    "email": "juanitoperz@gmail.com",
+    "salt": "7269fbe76992ce52b6e88925ad3914d6",
+    "hash": "3a6d957f3fa820629c325895fb7fd7aee080f18d760081301e9e3ada1f9cb23ce5d721a036af6e759d33c6781c38e77e31d29652343a19ede8b6e44025f4d836",
+    "preferences": {
+      "accessible": false,
+      "unisex": false,
+      "babychange": false,
+      "bottle": false,
+      "hideIssues": false,
+      "radius": 5000
+    },
+    "createdAt": "2026-10-15T02:54:19.800Z"
   }
 ]

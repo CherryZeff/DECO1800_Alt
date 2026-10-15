@@ -23,7 +23,8 @@ export function requireAccount(returnPage = 'index.html') {
 }
 
 export async function registerAccount(name, email, password) {
-  currentAccount = (await apiRequest('register', 'POST', { name, email, password })).user;
+  currentAccount = (await apiRequest('register', 'POST', { name, email, password }))
+    .user;
   return currentAccount;
 }
 
@@ -47,7 +48,10 @@ export function getRadius() {
   const radius =
     currentAccount?.preferences.radius ??
     Number(localStorage.getItem('parkpal.radius') || 5000);
-  return Number.isInteger(radius) && radius >= 1000 && radius <= 10000 && radius % 1000 === 0
+  return Number.isInteger(radius) &&
+    radius >= 1000 &&
+    radius <= 10000 &&
+    radius % 1000 === 0
     ? radius
     : 5000;
 }
@@ -93,6 +97,15 @@ export function getPreferences() {
   } catch {
     return {};
   }
+}
+export function getRunningSpeed() {
+  const speed = getPreferences().runningSpeed;
+  return Number.isFinite(speed) &&
+    speed >= 6 &&
+    speed <= 20 &&
+    Number.isInteger(speed * 2)
+    ? speed
+    : 10;
 }
 export async function updateAccount(input) {
   currentAccount = (await apiRequest('account', 'PUT', input)).user;

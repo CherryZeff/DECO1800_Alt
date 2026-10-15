@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#1c211e" />
     <meta
       name="description"
@@ -38,7 +41,11 @@
           >
           <p class="fine-print">Appearance is saved on this browser.</p>
         </section>
-        <section id="radius-settings" class="radius-settings" aria-labelledby="radius-heading">
+        <section
+          id="radius-settings"
+          class="radius-settings"
+          aria-labelledby="radius-heading"
+        >
           <h2 id="radius-heading">Map radius</h2>
           <p>Choose how far around your location ParkPal loads facilities.</p>
           <form id="radius-form">
@@ -61,9 +68,37 @@
             <button type="submit" class="secondary full">Save map radius</button>
           </form>
         </section>
+        <section class="radius-settings" aria-labelledby="speed-heading">
+          <h2 id="speed-heading">Running speed</h2>
+          <form id="speed-form">
+            <label for="running-speed"
+              >Your approximate speed
+              <output id="speed-value" for="running-speed">10 km/h</output></label
+            >
+            <input
+              id="running-speed"
+              name="runningSpeed"
+              type="range"
+              min="6"
+              max="20"
+              step="0.5"
+              value="10"
+            />
+            <div class="range-labels">
+              <span>6 km/h · Easy jog</span><span>20 km/h · Fast run</span>
+            </div>
+            <p class="fine-print">
+              Used for route estimates, not a live speed measurement. Saved with your
+              account, or on this browser for guests.
+            </p>
+            <p class="form-error" role="alert"></p>
+            <button type="submit" class="secondary full">Save running speed</button>
+          </form>
+        </section>
         <form id="preferences-form" aria-label="Preferences">
           <p class="intro compact">
-            Apply these preferences to nearby facilities and the nearest-toilet shortcut.
+            Apply these preferences to nearby facilities and the nearest-toilet
+            shortcut.
           </p>
           <h2>Toilet preferences</h2>
           <label class="check-row">
@@ -84,14 +119,24 @@
             <span>Bottle filling confirmed</span>
           </label>
           <p class="fine-print">
-            Council fountain records don’t confirm bottle filling. This filter shows community
-            facilities with that amenity.
+            Council fountain records don’t confirm bottle filling. This filter shows
+            community facilities with that amenity.
           </p>
           <h2 class="spaced-heading">Facility condition</h2>
           <label class="check-row">
             <input name="hideIssues" type="checkbox" />
             <span>Hide facilities with unresolved reports</span>
           </label>
+          <h2 class="spaced-heading">Route preferences</h2>
+          <label class="check-row">
+            <input name="allowFerries" type="checkbox" />
+            <span>Allow ferries</span>
+          </label>
+          <p class="fine-print">
+            Allow ferry crossings in planned routes and toilet searches. Off by default.
+            Bus and train routing is not available. Check ferry service times; estimates
+            exclude waiting time.
+          </p>
           <p class="form-error" role="alert"></p>
           <button class="primary full" type="submit">
             Save preferences
@@ -137,7 +182,9 @@
 
     <div id="toast" class="toast" role="status" hidden></div>
     <noscript>
-      <p class="noscript">Enable JavaScript to use ParkPal’s map and account features.</p>
+      <p class="noscript">
+        Enable JavaScript to use ParkPal’s map and account features.
+      </p>
     </noscript>
   </body>
 </html>

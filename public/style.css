@@ -243,7 +243,8 @@ summary:focus-visible {
   inset: auto 0 0;
   z-index: 1200;
   height: var(--nav-height);
-  padding: 5px max(12px, calc((100% - 680px) / 2)) calc(5px + env(safe-area-inset-bottom));
+  padding: 5px max(12px, calc((100% - 680px) / 2))
+    calc(5px + env(safe-area-inset-bottom));
   display: flex;
   align-items: stretch;
   justify-content: space-around;
@@ -1560,4 +1561,178 @@ textarea {
 }
 [data-theme='dark'] .form-error {
   color: #ff9d8d;
+}
+
+/* Clear route planning controls and a browser-filling view during a run. */
+.toilet-details {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.toilet-details > div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+}
+.toilet-details dt {
+  font-weight: 700;
+}
+.toilet-details dd {
+  margin: 0;
+}
+#running-speed {
+  width: 100%;
+  accent-color: var(--orange);
+  min-height: 44px;
+}
+#speed-value {
+  font-weight: 800;
+}
+.routes-page h1 {
+  font-size: clamp(28px, 4vw, 38px);
+  margin-bottom: 8px;
+}
+.routes-page .route-tools {
+  padding: 20px;
+}
+.routes-page .route-start small {
+  font-size: 16px;
+}
+.preview-distance {
+  font-size: 20px;
+  margin: 18px 0;
+}
+.run-metrics {
+  position: absolute;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 380px;
+  z-index: 600;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+.run-metrics span,
+.run-metrics small {
+  display: block;
+  font-size: 16px;
+}
+.run-metrics strong {
+  display: block;
+  font-size: clamp(24px, 6vw, 32px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.run-metrics small {
+  color: var(--muted);
+}
+.run-controls {
+  position: absolute;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  width: calc(100% - 32px);
+  max-width: 460px;
+  z-index: 600;
+}
+.run-controls button {
+  flex: 1;
+  min-height: 60px;
+  font-size: 18px;
+  box-shadow: var(--shadow);
+}
+.run-active {
+  overflow: hidden;
+}
+.run-active > .topbar,
+.run-active > .bottom-nav,
+.run-active .route-tools,
+.run-active #toilet-route-back {
+  display: none !important;
+}
+.run-active .route-layout {
+  display: block;
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  padding: 0;
+  z-index: 1000;
+}
+.run-active .route-map {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.run-active .run-metrics {
+  top: calc(16px + env(safe-area-inset-top));
+}
+.run-active .leaflet-top {
+  top: calc(130px + env(safe-area-inset-top));
+}
+.run-active #toast {
+  z-index: 2000;
+}
+.route-bubble.leaflet-tooltip {
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid #ef5c27;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+.route-bubble-button {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 750;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 10px 12px;
+  min-height: 44px;
+  cursor: pointer;
+}
+@media (max-width: 800px) {
+  .routes-page .route-map {
+    height: 48dvh;
+    min-height: 360px;
+  }
+  .run-active .route-map {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+/* Keep destination bubbles clear of the zoom buttons on narrow screens. */
+.nearest-mode .leaflet-top {
+  top: 10px;
+}
+.nearest-mode .leaflet-control-zoom {
+  margin-top: 10px !important;
+}
+.index-page.nearest-mode {
+  --header-height: 64px;
+}
+.nearest-mode .place-search {
+  display: none;
+}
+.run-active {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+/* Ferry estimates include a transport label, so let longer bubbles wrap. */
+.route-bubble-button {
+  max-width: 200px;
+  white-space: normal;
 }

@@ -818,3 +818,258 @@ test('account editing verifies password, enforces email uniqueness and rotates s
   assert.equal(saved.name, input.name);
   assert.equal(saved.password, undefined);
 });
+
+test('Council toilet details preserve shower and gender flags, including unknown values', () => {
+  const row = {
+    facilityid: 'types',
+    geopoint: { lat: -27.47, lon: 153.025 },
+    male: 'True',
+    female: true,
+    unisex: 'False',
+    allgender: 'True',
+    shower: 'False',
+  };
+  assert.deepEqual(normalize(row, 'toilet').toiletDetails, {
+    male: true,
+    female: true,
+    unisex: false,
+    allgender: true,
+    shower: false,
+  });
+  assert.equal(
+    normalize({ ...row, shower: true }, 'toilet').toiletDetails.shower,
+    true,
+  );
+  const unknown = normalize(
+    { facilityid: 'unknown', geopoint: row.geopoint },
+    'toilet',
+  );
+  assert.deepEqual(unknown.toiletDetails, {
+    male: null,
+    female: null,
+    unisex: null,
+    allgender: null,
+    shower: null,
+  });
+});
+
+test('running speed defaults and persists, with bounded numeric values', async () => {
+  const before = (await request('/api/me', 'GET', undefined, true)).result.user
+    .preferences;
+  assert.equal(before.runningSpeed, 10);
+  for (const runningSpeed of [6, 12.5, 20]) {
+    const result = await request(
+      '/api/preferences',
+      'PUT',
+      { ...before, runningSpeed },
+      true,
+    );
+    assert.equal(result.response.status, 200);
+    assert.equal(
+      (await request('/api/me', 'GET', undefined, true)).result.user.preferences
+        .runningSpeed,
+      runningSpeed,
+    );
+  }
+  for (const runningSpeed of [0, 5.5, 20.5, 12.3, '12', null]) {
+    assert.equal(
+      (await request('/api/preferences', 'PUT', { ...before, runningSpeed }, true))
+        .response.status,
+      400,
+    );
+  }
+  const account = JSON.parse(readFileSync(join(directory, 'accounts.json'))).find(
+    (row) => row.email === 'updated@example.com',
+  );
+  assert.equal(account.preferences.runningSpeed, 20);
+  assert.equal(account.preferences.radius, before.radius);
+});
+
+test('toilet route previews use walking validation but never write routes or visits', async () => {
+  const beforeRoutes = readFileSync(join(directory, 'routes.json'), 'utf8');
+  const beforeVisits = readFileSync(join(directory, 'visits.json'), 'utf8');
+  const input = {
+    points: [
+      { lat: -27.47, lng: 153.025 },
+      { lat: -27.4701, lng: 153.025 },
+    ],
+    preview: true,
+  };
+  try {
+    const preview = await request('/api/route', 'POST', input, true);
+    assert.equal(preview.response.status, 200);
+    assert.equal(preview.result.savedRouteId, null);
+    assert.equal(preview.result.route.geometry.type, 'LineString');
+    routingModes = ['ferry'];
+    assert.equal(
+      (await request('/api/route', 'POST', input, true)).response.status,
+      422,
+    );
+    assert.equal(readFileSync(join(directory, 'routes.json'), 'utf8'), beforeRoutes);
+    assert.equal(readFileSync(join(directory, 'visits.json'), 'utf8'), beforeVisits);
+  } finally {
+    routingModes = ['walking'];
+  }
+});
+
+test('community toilet details persist, reload, validate and keep unisex filtering consistent', async () => {
+  const input = {
+    type: 'toilet',
+    name: 'Shared shower toilet',
+    lat: -27.47,
+    lng: 153.025,
+    amenities: ['accessible'],
+    toiletDetails: {
+      shower: true,
+      male: true,
+      female: true,
+      unisex: true,
+      allgender: true,
+    },
+  };
+  const result = await request('/api/submissions', 'POST', input, true);
+  assert.equal(result.response.status, 201);
+  assert.deepEqual(result.result.facility.toiletDetails, input.toiletDetails);
+  assert.ok(result.result.facility.amenities.includes('unisex'));
+  const saved = JSON.parse(readFileSync(join(directory, 'submissions.json'))).find(
+    (row) => row.id === result.result.facility.id,
+  );
+  assert.deepEqual(saved.toiletDetails, input.toiletDetails);
+  const nearby = await request('/api/facilities?lat=-27.47&lng=153.025&radius=5000');
+  assert.deepEqual(
+    nearby.result.facilities.find((row) => row.id === saved.id).toiletDetails,
+    input.toiletDetails,
+  );
+  const noShower = await request(
+    '/api/submissions',
+    'POST',
+    {
+      ...input,
+      toiletDetails: { shower: false, unisex: false },
+      amenities: ['unisex'],
+    },
+    true,
+  );
+  assert.equal(noShower.result.facility.toiletDetails.shower, false);
+  assert.equal(noShower.result.facility.toiletDetails.male, null);
+  assert.ok(!noShower.result.facility.amenities.includes('unisex'));
+  const legacy = await request(
+    '/api/submissions',
+    'POST',
+    { ...input, toiletDetails: undefined, amenities: ['unisex'] },
+    true,
+  );
+  assert.equal(legacy.result.facility.toiletDetails.shower, null);
+  assert.equal(legacy.result.facility.toiletDetails.unisex, true);
+  const before = readFileSync(join(directory, 'submissions.json'), 'utf8');
+  for (const toiletDetails of [[], 'unisex', null, { shower: 'yes' }, { male: 1 }]) {
+    assert.equal(
+      (await request('/api/submissions', 'POST', { ...input, toiletDetails }, true))
+        .response.status,
+      400,
+    );
+  }
+  assert.equal(readFileSync(join(directory, 'submissions.json'), 'utf8'), before);
+  const water = await request(
+    '/api/submissions',
+    'POST',
+    { ...input, type: 'water' },
+    true,
+  );
+  assert.equal(water.result.facility.toiletDetails, undefined);
+});
+
+test('ferries require opt-in; account preferences control both previews and saved routes', async () => {
+  const prefs = (await request('/api/me', 'GET', undefined, true)).result.user
+    .preferences;
+  assert.equal(prefs.allowFerries, false);
+  const input = {
+    points: [
+      { lat: -27.47, lng: 153.025 },
+      { lat: -27.471, lng: 153.026 },
+    ],
+    preview: true,
+  };
+  const before = readFileSync(join(directory, 'routes.json'), 'utf8');
+  try {
+    routingModes = ['ferry'];
+    assert.equal((await request('/api/route', 'POST', input)).response.status, 422);
+    assert.equal(
+      (await request('/api/route', 'POST', { ...input, allowFerries: 'true' })).response
+        .status,
+      400,
+    );
+    const guest = await request('/api/route', 'POST', { ...input, allowFerries: true });
+    assert.equal(guest.response.status, 200);
+    assert.equal(
+      (await request('/api/route', 'POST', { ...input, allowFerries: true }, true))
+        .response.status,
+      422,
+    );
+    await request('/api/preferences', 'PUT', { ...prefs, allowFerries: true }, true);
+    assert.equal(
+      (await request('/api/me', 'GET', undefined, true)).result.user.preferences
+        .allowFerries,
+      true,
+    );
+    const account = JSON.parse(readFileSync(join(directory, 'accounts.json'))).find(
+      (row) => row.email === 'updated@example.com',
+    );
+    assert.equal(account.preferences.allowFerries, true);
+    assert.equal(account.preferences.runningSpeed, prefs.runningSpeed);
+    assert.equal(
+      (await request('/api/route', 'POST', input, true)).response.status,
+      200,
+    );
+    assert.equal(readFileSync(join(directory, 'routes.json'), 'utf8'), before);
+    const saved = await request(
+      '/api/route',
+      'POST',
+      { ...input, preview: false },
+      true,
+    );
+    assert.equal(saved.response.status, 200);
+    assert.ok(saved.result.savedRouteId);
+    const { isAllowedRoute } = await import('../server.js');
+    for (const mode of ['driving', 'train', 'bus', undefined]) {
+      const invalid = structuredClone(guest.result.route);
+      invalid.legs[0].steps[0].mode = mode;
+      assert.equal(isAllowedRoute(invalid, true), false);
+    }
+    const restricted = structuredClone(guest.result.route);
+    restricted.legs[0].steps[0].intersections = [{ classes: ['restricted'] }];
+    assert.equal(isAllowedRoute(restricted, true), false);
+    const ferryClass = structuredClone(guest.result.route);
+    ferryClass.legs[0].steps[0].mode = 'walking';
+    ferryClass.legs[0].steps[0].intersections = [{ classes: ['ferry'] }];
+    assert.equal(isAllowedRoute(ferryClass, false), false);
+    assert.equal(isAllowedRoute(ferryClass, true), true);
+    await request('/api/preferences', 'PUT', { ...prefs, allowFerries: false }, true);
+    assert.equal(
+      (await request('/api/route', 'POST', input, true)).response.status,
+      422,
+    );
+  } finally {
+    routingModes = ['walking'];
+  }
+});
+
+test('ferry estimates use crossing duration rather than running speed', async () => {
+  const { routeEstimate } = await import('../public/js/helpers.js');
+  const route = {
+    distance: 5000,
+    legs: [
+      {
+        steps: [
+          { mode: 'walking', distance: 1000 },
+          { mode: 'ferry', distance: 4000, duration: 300 },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(routeEstimate(route, 10), { minutes: 11, hasFerry: true });
+  delete route.legs[0].steps[1].duration;
+  assert.deepEqual(routeEstimate(route, 10), { minutes: null, hasFerry: true });
+  route.legs[0].steps = [{ mode: 'walking', distance: 5000 }];
+  assert.deepEqual(routeEstimate(route, 10), { minutes: 30, hasFerry: false });
+});

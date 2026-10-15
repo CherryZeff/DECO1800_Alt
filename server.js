@@ -115,12 +115,19 @@ function position(value) {
 }
 function preferences(value = {}) {
   const result = Object.fromEntries(
-    ['accessible', 'unisex', 'babychange', 'bottle', 'hideIssues'].map((key) => [
-      key,
-      value?.[key] === true,
-    ]),
+    ['accessible', 'unisex', 'babychange', 'bottle', 'hideIssues', 'allowFerries'].map(
+      (key) => [key, value?.[key] === true],
+    ),
   );
   result.radius = value.radius === undefined ? 5000 : validRadius(value.radius);
+  result.runningSpeed = value.runningSpeed === undefined ? 10 : value.runningSpeed;
+  if (
+    !Number.isFinite(result.runningSpeed) ||
+    result.runningSpeed < 6 ||
+    result.runningSpeed > 20 ||
+    !Number.isInteger(result.runningSpeed * 2)
+  )
+    fail('Choose a running speed from 6 to 20 km/h in 0.5 km/h steps.');
   return result;
 }
 function validRadius(value) {
@@ -136,6 +143,8 @@ function publicAccount(account) {
     preferences: {
       ...account.preferences,
       radius: account.preferences?.radius || 5000,
+      runningSpeed: account.preferences?.runningSpeed ?? 10,
+      allowFerries: account.preferences?.allowFerries === true,
     },
   };
 }
@@ -236,6 +245,31 @@ export function distance(a, b) {
   return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
 }
 const yes = (value) => value === true || String(value).toLowerCase() === 'true';
+// Missing Council values must not be displayed as a confirmed "No".
+const councilBoolean = (value) =>
+  yes(value)
+    ? true
+    : value === false || String(value).toLowerCase() === 'false'
+      ? false
+      : null;
+
+function submissionToiletDetails(value, amenities) {
+  if (
+    value !== undefined &&
+    (!value || typeof value !== 'object' || Array.isArray(value))
+  )
+    fail('Choose valid toilet details.');
+  const details = {};
+  for (const key of ['shower', 'male', 'female', 'unisex', 'allgender']) {
+    const selected = value?.[key] ?? null;
+    if (selected !== null && typeof selected !== 'boolean')
+      fail('Toilet details must be yes, no or unknown.');
+    details[key] = selected;
+  }
+  // Older submissions/imports only supplied the unisex amenity.
+  if (value === undefined && amenities.includes('unisex')) details.unisex = true;
+  return details;
+}
 export function normalize(row, type) {
   const point = type === 'toilet' ? row.geopoint : row.geo_point_2d;
   if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return null;
@@ -250,6 +284,16 @@ export function normalize(row, type) {
     lat: point.lat,
     lng: point.lon,
     amenities,
+    ...(type === 'toilet'
+      ? {
+          toiletDetails: Object.fromEntries(
+            ['shower', 'male', 'female', 'unisex', 'allgender'].map((key) => [
+              key,
+              councilBoolean(row[key]),
+            ]),
+          ),
+        }
+      : {}),
     address:
       type === 'toilet'
         ? [row.address1, row.town].filter(Boolean).join(', ')
@@ -399,8 +443,11 @@ async function searchPlaces(query) {
   return task;
 }
 
-// Never display a ferry/transit/driving segment, or a route with missing mode data.
+// Opt-in ferries never permit car routes, railway routes or unknown travel modes.
 export function isWalkingOnly(route) {
+  return isAllowedRoute(route, false);
+}
+export function isAllowedRoute(route, allowFerries = false) {
   return (
     route?.geometry?.type === 'LineString' &&
     Array.isArray(route.geometry.coordinates) &&
@@ -426,10 +473,13 @@ export function isWalkingOnly(route) {
         leg.steps.length > 0 &&
         leg.steps.every(
           (step) =>
-            step.mode === 'walking' &&
+            (step.mode === 'walking' ||
+              (allowFerries === true && step.mode === 'ferry')) &&
             !step.intersections?.some((intersection) =>
-              intersection.classes?.some((value) =>
-                ['ferry', 'motorway', 'restricted', 'tunnel_shuttle'].includes(value),
+              intersection.classes?.some(
+                (value) =>
+                  ['motorway', 'restricted', 'tunnel_shuttle'].includes(value) ||
+                  (value === 'ferry' && allowFerries !== true),
               ),
             ),
         ),
@@ -439,7 +489,7 @@ export function isWalkingOnly(route) {
 
 let routeQueue = Promise.resolve();
 let lastRoute = 0;
-function walkingRoute(points) {
+function walkingRoute(points, allowFerries = false) {
   // Respect the public routing service's one-request-per-second limit.
   const task = routeQueue.then(async () => {
     await new Promise((done) =>
@@ -456,11 +506,14 @@ function walkingRoute(points) {
         422,
       );
     const walking = result.routes.find(
-      (route) => route.legs?.length === points.length - 1 && isWalkingOnly(route),
+      (route) =>
+        route.legs?.length === points.length - 1 && isAllowedRoute(route, allowFerries),
     );
     if (!walking)
       fail(
-        'No walking-only route found. Routes containing ferries, vehicles or unverified travel modes have been excluded. Try different stops.',
+        allowFerries
+          ? 'No pedestrian/ferry route found. Vehicle-only and unverified travel modes are excluded. Try different stops.'
+          : 'No walking-only route found. Routes containing ferries, vehicles or unverified travel modes have been excluded. Try different stops.',
         422,
       );
     return { ...walking, waypoints: result.waypoints };
@@ -738,6 +791,11 @@ async function api(req, res, url) {
       photos: photos.map((photo) => photo.filename),
       ...(input.clientId ? { clientId: input.clientId } : {}),
     };
+    if (row.type === 'toilet') {
+      row.toiletDetails = submissionToiletDetails(input.toiletDetails, row.amenities);
+      row.amenities = row.amenities.filter((key) => key !== 'unisex');
+      if (row.toiletDetails.unisex === true) row.amenities.push('unisex');
+    }
     const rows = read('submissions');
     rows.push(row);
     const written = [];
@@ -817,10 +875,16 @@ async function api(req, res, url) {
     )
       fail('Choose between 2 and 12 route points.');
     const points = input.points.map(position);
-    const route = await walkingRoute(points);
+    if (input.allowFerries !== undefined && typeof input.allowFerries !== 'boolean')
+      fail('Choose a valid ferry preference.');
     const user = currentUser(req);
+    // Account preferences are authoritative; guests pass their browser-local setting.
+    const allowFerries = user
+      ? user.preferences?.allowFerries === true
+      : input.allowFerries === true;
+    const route = await walkingRoute(points, allowFerries);
     let savedRoute = null;
-    if (user) {
+    if (user && input.preview !== true) {
       const roundTrip = input.roundTrip === true;
       if (roundTrip && distance(points[0], points.at(-1)) > 1)
         fail('A return route must finish at its start.');

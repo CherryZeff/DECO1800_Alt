@@ -127,3 +127,24 @@ export const amenityNames = {
   bottle: 'Bottle filling',
   dog: 'Dog bowl',
 };
+
+// Only running segments use the runner's speed. Ferry time comes from the provider.
+export function routeEstimate(route, speed) {
+  const steps = route.legs.flatMap((leg) => leg.steps);
+  const isFerry = (step) =>
+    step.mode === 'ferry' ||
+    step.intersections?.some((point) => point.classes?.includes('ferry'));
+  const hasFerry = steps.some(isFerry);
+  if (!hasFerry)
+    return {
+      hasFerry,
+      minutes: Math.max(1, Math.ceil((route.distance / 1000 / speed) * 60)),
+    };
+  let seconds = 0;
+  for (const step of steps) {
+    const value = isFerry(step) ? step.duration : (step.distance / 1000 / speed) * 3600;
+    if (!Number.isFinite(value) || value < 0) return { hasFerry, minutes: null };
+    seconds += value;
+  }
+  return { hasFerry, minutes: Math.max(1, Math.ceil(seconds / 60)) };
+}

@@ -305,6 +305,10 @@ In a browser at https://YOUR_WEB_HOST/:
   7. Mark it resolved; reload and confirm the resolution persists.
   8. On a phone, allow location and use the circular toilet button. Select one
      of the nearest choices, create its route, and check the back controls.
+     Check reachable toilets replace unavailable paths and have dotted lines
+     with distance/time bubbles. Tap a choice to start a run automatically,
+     check the full-screen timer and Locate me / End route controls, then test
+     the running-speed setting. The timer is not saved and resets on reload.
      Check Activity > Past routes and Favourites, and test top-bar place search.
   9. Test guest access in another browser; shared facilities should still load.
 

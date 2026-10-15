@@ -1,5 +1,5 @@
 // Leaflet details live here so the page scripts can focus on user actions.
-import { icon, notify } from './helpers.js';
+import { icon, notify, formatDistance, routeEstimate } from './helpers.js';
 
 export class FacilityMap {
   constructor(onFacilityClick, onMapClick) {
@@ -34,6 +34,7 @@ export class FacilityMap {
     ).addTo(this.map);
     this.stopLayer = L.layerGroup().addTo(this.map);
     this.selectionLayer = L.layerGroup().addTo(this.map);
+    this.previewLayer = L.featureGroup().addTo(this.map);
     this.onFacilityClick = onFacilityClick;
     this.map.on('click', (event) => onMapClick(event.latlng));
   }
@@ -125,6 +126,75 @@ export class FacilityMap {
     if (this.routeLayer && this.map) this.map.removeLayer(this.routeLayer);
   }
 
+  showRouteChoices(choices, speed) {
+    if (!this.map) return;
+    this.previewLayer.clearLayers();
+    for (const { facility, route, loading } of choices) {
+      if (route)
+        L.geoJSON(route.geometry, {
+          style: {
+            color: '#ef5c27',
+            weight: 5,
+            dashArray: '1 11',
+            lineCap: 'round',
+            opacity: 0.95,
+          },
+        }).addTo(this.previewLayer);
+      // Each bubble belongs to a destination, even when paths share the same street.
+      const button = document.createElement('button');
+      button.className = 'route-bubble-button';
+      if (route) {
+        const estimate = routeEstimate(route, speed);
+        const time =
+          estimate.minutes === null ? 'time unknown' : `~${estimate.minutes} min`;
+        button.textContent = `${formatDistance(route.distance)} · ${time}${estimate.hasFerry ? ' · ferry, + wait' : ' run'}`;
+      } else button.textContent = loading ? 'Finding path…' : 'Path unavailable';
+      button.setAttribute(
+        'aria-label',
+        `${facility.name}: ${button.textContent}. Start route`,
+      );
+      button.onclick = (event) => {
+        event.stopPropagation();
+        this.onFacilityClick(facility);
+      };
+      L.tooltip({
+        permanent: true,
+        interactive: true,
+        direction: 'top',
+        offset: [0, -25],
+        className: 'route-bubble',
+      })
+        .setLatLng([facility.lat, facility.lng])
+        .setContent(button)
+        .addTo(this.previewLayer);
+    }
+  }
+
+  clearRouteChoices() {
+    this.previewLayer?.clearLayers();
+  }
+
+  showCurrentLocation(point) {
+    if (!this.map) return;
+    if (!this.currentMarker)
+      this.currentMarker = L.circleMarker([point.lat, point.lng], {
+        radius: 9,
+        color: '#fff',
+        weight: 3,
+        fillColor: '#2678d9',
+        fillOpacity: 1,
+      })
+        .addTo(this.map)
+        .bindTooltip('You are here');
+    this.currentMarker.setLatLng([point.lat, point.lng]);
+    this.focus(point);
+  }
+
+  clearCurrentLocation() {
+    if (this.currentMarker) this.map.removeLayer(this.currentMarker);
+    this.currentMarker = null;
+  }
+
   showRoute(route) {
     if (!this.map) return;
     this.clearRoute();
@@ -133,8 +203,12 @@ export class FacilityMap {
     }).addTo(this.map);
     // Leave room above the route for the back button and zoom controls.
     this.map.fitBounds(this.routeLayer.getBounds(), {
-      paddingTopLeft: [45, 90],
-      paddingBottomRight: [45, 45],
+      animate: false,
+      paddingTopLeft: [45, 160],
+      paddingBottomRight: [
+        45,
+        document.body.classList.contains('run-active') ? 120 : 45,
+      ],
     });
   }
 

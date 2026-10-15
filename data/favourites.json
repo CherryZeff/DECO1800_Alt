@@ -16,5 +16,29 @@
       "createdAt": null
     },
     "createdAt": "2026-10-14T12:17:16.230Z"
+  },
+  {
+    "userId": "0f60c844-d9b1-4d88-a971-c469a59326a2",
+    "facility": {
+      "id": "community:e9b54048-e12b-4f12-8c0a-56ea60087582",
+      "type": "toilet",
+      "name": "Riverside Bathroom",
+      "lat": -27.492349756976182,
+      "lng": 153.00584077835086,
+      "amenities": [
+        "accessible",
+        "unisex",
+        "babychange"
+      ],
+      "description": "",
+      "address": "",
+      "hours": "Opening hours not provided",
+      "restrictions": [],
+      "source": "Community",
+      "author": "Elver Galarga",
+      "userId": "d34e4cc2-84a9-435a-899e-f14b1a638d44",
+      "createdAt": "2026-10-13T03:48:59.085Z"
+    },
+    "createdAt": "2026-10-15T02:58:27.334Z"
   }
 ]

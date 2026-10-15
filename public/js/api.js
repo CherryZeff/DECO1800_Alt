@@ -21,6 +21,10 @@ export async function apiRequest(path, method = 'GET', data) {
     );
   }
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'The request failed. Please try again.');
+  if (!response.ok)
+    throw Object.assign(
+      new Error(result.error || 'The request failed. Please try again.'),
+      { status: response.status },
+    );
   return result;
 }

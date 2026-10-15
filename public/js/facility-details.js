@@ -27,7 +27,9 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
   let selectedFacility;
   let reportRequest = 0;
   let favouriteRequest = 0;
-  const returnPage = location.pathname.endsWith('routes.html') ? 'routes.html' : 'index.html';
+  const returnPage = location.pathname.endsWith('routes.html')
+    ? 'routes.html'
+    : 'index.html';
 
   async function renderReports() {
     const request = ++reportRequest;
@@ -36,14 +38,18 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
     try {
       reports = await getReports(selectedFacility.id);
     } catch (error) {
-      if (request === reportRequest) find('#detail-timeline').textContent = error.message;
+      if (request === reportRequest)
+        find('#detail-timeline').textContent = error.message;
       return;
     }
     if (request !== reportRequest) return;
     // Keep older unresolved problems reachable, even after they leave the last ten.
     const recent = reports.slice(0, 10);
     const olderUnresolved = reports.slice(10).filter((report) => !report.resolvedAt);
-    find('#detail-timeline').innerHTML = reportsHTML([...recent, ...olderUnresolved], false);
+    find('#detail-timeline').innerHTML = reportsHTML(
+      [...recent, ...olderUnresolved],
+      false,
+    );
   }
 
   function open(facility) {
@@ -51,12 +57,20 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
     const amenities = facility.amenities
       .map((key) => `<span class="tag">${escapeHTML(amenityNames[key])}</span>`)
       .join('');
+    const toilet = facility.toiletDetails || {};
+    const types = [];
+    if (toilet.male && toilet.female) types.push('Male / Female');
+    else if (toilet.male) types.push('Male');
+    else if (toilet.female) types.push('Female');
+    if (toilet.unisex || facility.amenities.includes('unisex')) types.push('Unisex');
+    if (toilet.allgender) types.push('Gender-neutral (all-gender)');
     find('#facility-detail').innerHTML = `
       <div class="detail-type">${icon(facility.type)} ${facility.type === 'toilet' ? 'Public toilet' : 'Drinking water'}</div>
       <h2>${escapeHTML(titleCase(facility.name))}</h2>
       <p class="detail-address">${escapeHTML(titleCase(facility.address || 'Community map pin'))}</p>
       <div class="tag-list">${amenities}</div>
       ${amenities ? '' : '<p class="muted">No amenities confirmed in this record.</p>'}
+      ${facility.type === 'toilet' ? `<dl class="toilet-details"><div><dt>Toilet types</dt><dd>${types.join(' · ') || 'Not recorded'}</dd></div><div><dt>Showers</dt><dd>${toilet.shower === true ? 'Yes' : toilet.shower === false ? 'No' : 'Not recorded'}</dd></div></dl>` : ''}
       <h3>Opening hours</h3><p>${escapeHTML(facility.hours)}</p>
       ${facility.restrictions?.length ? `<p class="notice">${facility.restrictions.map(escapeHTML).join(' · ')}</p>` : ''}
       <p class="detail-description">${escapeHTML(facility.description)}</p>
@@ -166,7 +180,11 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
   }
 
   handleForm(find('#report-form'), async (form) => {
-    await addReport(selectedFacility, form.get('category'), form.get('description').trim());
+    await addReport(
+      selectedFacility,
+      form.get('category'),
+      form.get('description').trim(),
+    );
     find('#report-dialog').close();
     await onReportsChanged();
     open(selectedFacility);
