@@ -40,20 +40,18 @@
   <body class="index-page">
     <!-- The same simple header and navigation appear on every page. -->
     <header class="topbar">
-      <a href="./index.html" class="brand">
+      <a href="./index.html" class="brand" aria-label="ParkPal home">
         <img src="./public/icon.svg" alt="" width="40" height="40" />
-        ParkPal
-        <span>.</span>
       </a>
       <form id="place-search" class="place-search" role="search">
         <label class="sr-only" for="place-query"
-          >Search a Brisbane suburb or place</label
+          >Search a suburb, place or store</label
         >
         <input
           id="place-query"
           name="place"
           type="search"
-          placeholder="Suburb or place name"
+          placeholder="Suburb, place or store"
           minlength="2"
           maxlength="120"
           required
@@ -78,7 +76,7 @@
         </div>
       </form>
     </header>
-    <!-- The map stays visible behind a collapsible, scrollable facility sheet. -->
+    <!-- Explore with pins and the two map-mode arrows. -->
     <main class="map-layout">
       <div id="map" aria-label="Interactive facility map"></div>
       <p id="map-error" class="notice map-error" hidden>
@@ -92,14 +90,9 @@
         ← Back to all stops
       </button>
       <div class="map-top">
-        <p id="location-label" class="location-pill">Brisbane preview · 5 km radius</p>
+        <p id="map-mode" class="location-pill" aria-live="polite">All stops</p>
       </div>
       <div class="map-tools">
-        <button id="locate" class="map-button" aria-label="Find my location">
-          <svg class="icon" aria-hidden="true">
-            <use href="./public/icons.svg#i-target"></use>
-          </svg>
-        </button>
         <button
           id="add-facility"
           class="map-button add-map-button"
@@ -110,84 +103,41 @@
           </svg>
           <span>Add</span>
         </button>
-      </div>
-      <section
-        id="facility-sheet"
-        class="bottom-sheet"
-        data-state="peek"
-        aria-label="Nearby facilities"
-      >
-        <button
-          id="toggle-sheet"
-          class="sheet-toggle"
-          aria-expanded="false"
-          aria-controls="sheet-content"
-        >
-          <span class="sheet-grip"></span>
-          <span class="sheet-title">
-            <span id="sheet-title">Nearby stops</span>
-            <span id="sheet-action">Show list ↑</span>
-          </span>
+        <button id="locate" class="map-button" aria-label="Find my location">
+          <svg class="icon" aria-hidden="true">
+            <use href="./public/icons.svg#i-target"></use>
+          </svg>
         </button>
-        <div class="filters" role="group" aria-label="Facility type">
-          <button class="filter active" data-filter="all" aria-pressed="true">
-            All stops
-          </button>
-          <button class="filter" data-filter="water" aria-pressed="false">
-            <svg class="icon" aria-hidden="true">
-              <use href="./public/icons.svg#i-water"></use>
-            </svg>
-            Water
-          </button>
-          <button class="filter" data-filter="toilet" aria-pressed="false">
-            <svg class="icon" aria-hidden="true">
-              <use href="./public/icons.svg#i-toilet"></use>
-            </svg>
-            Toilets
+      </div>
+      <button
+        id="previous-mode"
+        class="mode-arrow previous-mode"
+        type="button"
+        aria-label="Show convenience stores"
+      >
+        <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-store"></use></svg>
+        <span aria-hidden="true">&lt;</span>
+      </button>
+      <button
+        id="next-mode"
+        class="mode-arrow next-mode"
+        type="button"
+        aria-label="Show toilets"
+      >
+        <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-toilet"></use></svg>
+        <span aria-hidden="true">&gt;</span>
+      </button>
+      <section class="map-status" aria-label="Map information">
+        <p id="facility-count" role="status">Finding facilities…</p>
+        <div class="map-status-actions">
+          <a href="./public/settings.html#radius-settings" id="radius-link"
+            >Radius: 5 km ↗</a
+          >
+          <button id="retry-data" class="text-button" type="button">
+            Refresh
           </button>
         </div>
-        <div id="sheet-content" class="sheet-content" hidden>
-          <div class="section-heading">
-            <h1 class="sheet-heading">Your next stop</h1>
-            <a
-              href="./public/settings.html#radius-settings"
-              class="text-button"
-              id="radius-link"
-              >Radius: 5 km ↗</a
-            >
-          </div>
-          <label class="search-field">
-            <svg class="icon" aria-hidden="true">
-              <use href="./public/icons.svg#i-search"></use>
-            </svg>
-            <input
-              id="facility-search"
-              type="search"
-              placeholder="Search nearby facilities"
-            />
-            <span class="sr-only">Search facility names</span>
-          </label>
-          <div class="list-caption">
-            <p id="facility-count" role="status">Finding facilities…</p>
-            <a href="./public/accounts.html#preferences" class="text-button"
-              >Preferences ↗</a
-            >
-          </div>
-          <p class="muted">Distances are straight-line estimates.</p>
-          <p id="data-warning" class="notice" role="status" hidden></p>
-          <div id="facility-list" class="facility-list">
-            <p class="empty-state">Loading council facilities…</p>
-          </div>
-          <button id="retry-data" class="secondary full">Refresh facilities</button>
-          <div class="community-card">
-            <h2>Missing a stop?</h2>
-            <p>Leave a pin for a toilet or drinking fountain.</p>
-            <button id="add-from-list" class="text-button">Add a facility ↗</button>
-          </div>
-          <p class="fine-print">
-            Community contributions and reports are saved and shared.
-          </p>
-        </div>
+        <p id="data-warning" role="status" hidden></p>
       </section>
     </main>
     <nav class="bottom-nav" aria-label="Main navigation">
@@ -277,6 +227,7 @@
           <select name="type">
             <option value="water">Drinking water</option>
             <option value="toilet">Public toilet</option>
+            <option value="store">Convenience store</option>
           </select>
         </label>
         <label>
@@ -295,7 +246,11 @@
           >
         </label>
         <div class="button-row">
-          <button id="add-current-location" type="button" class="secondary small">
+          <button
+            id="add-current-location"
+            type="button"
+            class="secondary small"
+          >
             <svg class="icon"><use href="./public/icons.svg#i-target" /></svg>
             My location
           </button>
@@ -343,7 +298,11 @@
         <label>
           Opening hours
           <span class="optional">optional</span>
-          <input name="hours" placeholder="e.g. Open 24 hours" maxlength="160" />
+          <input
+            name="hours"
+            placeholder="e.g. Open 24 hours"
+            maxlength="160"
+          />
         </label>
         <label>
           Description
@@ -367,8 +326,8 @@
           aria-describedby="photo-help"
         />
         <p id="photo-help" class="fine-print">
-          Up to 3 photos, 2 MB each. JPEG, PNG or WebP. Photos are shared with the
-          facility.
+          Up to 3 photos, 2 MB each. JPEG, PNG or WebP. Photos are shared with
+          the facility.
         </p>
         <div id="photo-preview" class="photo-preview"></div>
         <p class="fine-print">Appears immediately on the shared map.</p>

@@ -3,7 +3,8 @@ Updated: 15 October 2026
 Maintenance: update this file whenever features or storage behaviour change.
 
 PURPOSE AND STRUCTURE
-ParkPal helps runners locate public toilets and drinking water around Brisbane.
+ParkPal helps runners locate public toilets and drinking water around Brisbane,
+plus selected convenience stores in Brisbane, Logan and Ipswich.
 Plain HTML, CSS and JavaScript; Leaflet maps; no frontend build step.
 Root index.html is the entry point. Routes, More, Account and Settings pages
 live under public/. Activity links to Past routes, Favourites and Facility activity
@@ -12,7 +13,10 @@ circular orange toilet-icon shortcut. Black, orange and white responsive styling
 a running-person logo, readable text and large controls support phone and desktop.
 
 HOME MAP
-- Top search bar finds Brisbane-region suburbs and place names on submission.
+- Compact black header contains only the running logo and search.
+- Search finds suburbs, places and imported store names/addresses on submission.
+  Store matches are local and remain available when external geocoding fails.
+  Selecting a store recentres the map and opens its details.
 - Selecting a result reloads nearby facilities using the saved radius.
 - Nominatim-compatible search is bounded to the Brisbane region, queued at least
   1.1 seconds apart, cached for 24 hours (up to 100 queries) and attributed to OSM.
@@ -20,7 +24,8 @@ HOME MAP
 - Requests GPS location, with a clearly labelled Brisbane preview if unavailable.
 - Queries Brisbane City Council public-toilets-in-brisbane and
   park-drinking-fountain-tap-locations datasets within the selected radius.
-- Fetches all matching council pages, then adds user submissions read from JSON.
+- Fetches all matching council pages, then adds submissions and stores from JSON
+  using the same radius. Store data does not require a live external request.
 - Reads submissions and report counts fresh on every facility refresh.
 - Council responses are cached for five minutes; submissions are not cached.
 - Shows clustered facility markers, open-report indicators, facility details,
@@ -29,10 +34,48 @@ HOME MAP
   Gender-neutral (allgender) flags independently; several types may apply.
   Missing shower values display Not recorded, distinct from confirmed No.
   Community records without these fields remain unknown.
-- Filters toilets/water/all, searches names/addresses, and applies preferences.
-- Expandable bottom sheet works by tap or handle swipe and lists nearby stops
-  in distance order, with a Show more control for larger result sets.
+- Vertical rectangular side buttons cycle All / Toilets / Water fountains /
+  Convenience stores. Each shows the destination icon above a < or > symbol,
+  with its colour and accessible label indicating the previous/next mode.
+- The top-left map pill shows the current facility mode instead of location/radius.
+  It aligns with the top-right controls and wraps on narrow phones.
+- No bottom sheet or separate facility-list search. Tap map pins for details.
+- Orange + Add sits left of Locate. Zoom +/- controls appear only above 768px;
+  touch screens use pinch zoom. Status, radius link and refresh remain visible.
+- Stores use pink pins; community pins use the facility colour and black dotted
+  outlines in both themes. Toilet/water amenity preferences do not hide stores.
+  The hide-unresolved-problems preference still applies to all facility types.
 - Location and retry controls refresh the area. Panning alone does not reload it.
+
+CONVENIENCE STORES
+- scripts/import-stores.js (npm run import:stores) retrieves OpenStreetMap data
+  through Overpass; Google is not used, following the approved source change.
+- Limits results to Brisbane, Logan and Ipswich council boundary areas.
+- Matches EzyMart, 7-Eleven, Shell/Coles Express, NightOwl and Foodary on name,
+  brand or operator among convenience shops and fuel stations. Other chains and
+  private/disused records are excluded. Coverage depends on OSM tags and is incomplete.
+- Saves data/stores.json with OSM ID, name, chain, coordinates, area, available
+  address/hours, source attribution/link and import time. Missing hours remain
+  explicitly unknown; raw OSM hours are not interpreted as live opening status.
+- Nearby same-chain shop/fuel records within 30m merge; geometry centres locate
+  ways/relations. Fuel-station records do not confirm every store service.
+- All areas must succeed before atomically replacing stores.json. Failed or
+  empty responses preserve previous data. DATA_DIR and OVERPASS_URL are supported.
+- Tries three global Overpass services sequentially on server/network failures
+  or incomplete responses, with a 60-second timeout per attempt and readable host
+  progress/errors. HTTP 400 stops immediately; OVERPASS_URL selects one host only.
+- Manual refresh only; no API key, automatic schedule or Google scraping.
+- Initial live snapshot contains 229 stores: 13 EzyMart, 105 7-Eleven,
+  53 Shell/Coles Express, 21 NightOwl and 37 Foodary. Hours are known for 71
+  and not recorded for 158. Counts can change on later imports.
+  Empty installations explicitly report that locations have not been imported.
+- Store details support the existing routes, favourites, visits and reports.
+- Community contribution form accepts toilets, drinking fountains and convenience
+  stores. Stores offer wheelchair accessibility, name, map pin/current location,
+  optional hours, description and photos. Toilet-specific fields are disabled.
+  Community stores save in submissions.json, appear as pink pins with black dotted
+  outlines, and can be searched by name. They are separate from imported stores
+  and are not restricted to the importer's five chains.
 
 CLOSEST TOILETS
 - Circular toilet action in the bottom navigation works from every page.
@@ -41,9 +84,9 @@ CLOSEST TOILETS
 - Skips toilets without a validated pedestrian path and tries the next candidate
   until three reachable choices are found or all candidates have been checked.
   General network/service failures stop the search with a retry message.
-- Shows only confirmed reachable toilet pins, list entries and orange dotted paths,
+- Shows only confirmed reachable toilet pins and orange dotted paths,
   with a distance/running-time bubble for each. Results appear as they are found.
-- Tapping a toilet pin, bubble or list entry opens its route and automatically starts
+- Tapping a toilet pin or bubble opens its route and automatically starts
   the full-screen run/timer after successful route revalidation. It uses the location
   captured when toilet mode began. A failed route never starts a run or saves a plan.
 - Comparison requests never save routes or mark visits. Back clears the lines
@@ -158,6 +201,7 @@ SHARED FILES AND RECOVERY
 - data/accounts.json: accounts and preferences.
 - data/submissions.json: submitted facilities and photo references.
 - data/reports.json: problems and resolution information.
+- data/stores.json: imported OSM store snapshot, separate from submissions.
 - data/photos/: uploaded photos, publicly readable through /photos/ URLs.
 - data/routes.json: account-owned created route plans and their coordinates.
   Uses readable indented JSON with only route ID, user ID, date and draft:

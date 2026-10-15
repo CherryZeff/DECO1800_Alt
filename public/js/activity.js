@@ -32,7 +32,7 @@ async function render() {
           const url = pageURL(
             `index.html?lat=${facility.lat}&lng=${facility.lng}&facility=${encodeURIComponent(facility.id)}`,
           );
-          return `<article class="menu-card"><h2>${escapeHTML(facility.name)}</h2><p>${facility.type === 'toilet' ? 'Public toilet' : 'Drinking water'}</p><a class="primary" href="${url}">View facility</a><button class="text-button" data-unfavourite="${escapeHTML(facility.id)}">Remove favourite</button></article>`;
+          return `<article class="menu-card"><h2>${escapeHTML(facility.name)}</h2><p>${facility.type === 'toilet' ? 'Public toilet' : facility.type === 'store' ? 'Convenience store' : 'Drinking water'}</p><a class="primary" href="${url}">View facility</a><button class="text-button" data-unfavourite="${escapeHTML(facility.id)}">Remove favourite</button></article>`;
         })
         .join('') ||
       '<p class="empty-state">Open a facility and tap Favourite to save it here.</p>';

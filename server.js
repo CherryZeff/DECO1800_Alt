@@ -46,6 +46,7 @@ for (const name of [
   'routes',
   'favourites',
   'visits',
+  'stores',
 ]) {
   try {
     readFileSync(join(dataDir, `${name}.json`));
@@ -115,9 +116,14 @@ function position(value) {
 }
 function preferences(value = {}) {
   const result = Object.fromEntries(
-    ['accessible', 'unisex', 'babychange', 'bottle', 'hideIssues', 'allowFerries'].map(
-      (key) => [key, value?.[key] === true],
-    ),
+    [
+      'accessible',
+      'unisex',
+      'babychange',
+      'bottle',
+      'hideIssues',
+      'allowFerries',
+    ].map((key) => [key, value?.[key] === true]),
   );
   result.radius = value.radius === undefined ? 5000 : validRadius(value.radius);
   result.runningSpeed = value.runningSpeed === undefined ? 10 : value.runningSpeed;
@@ -375,6 +381,8 @@ async function councilNearby(type, center, radius) {
 async function findFacility(id) {
   const submitted = read('submissions').find((row) => row.id === id);
   if (submitted) return submitted;
+  const store = read('stores').find((row) => row.id === id);
+  if (store) return store;
   if (knownFacilities.has(id)) return knownFacilities.get(id);
   const match = /^(toilet|water):(\d+)$/.exec(id);
   if (!match) fail('Facility not found.', 404);
@@ -415,7 +423,7 @@ async function searchPlaces(query) {
       format: 'jsonv2',
       limit: '6',
       countrycodes: 'au',
-      viewbox: '152.6,-26.9,153.6,-28.2',
+      viewbox: '152.3,-26.9,153.6,-28.2',
       bounded: '1',
       'accept-language': 'en',
     });
@@ -589,7 +597,9 @@ async function api(req, res, url) {
     return json(res, 200, { user: publicAccount(account) });
   }
   if (path === '/api/logout' && req.method === 'POST') {
-    const token = (req.headers.cookie || '').match(/(?:^|; )runstop=([a-f0-9]+)/)?.[1];
+    const token = (req.headers.cookie || '').match(
+      /(?:^|; )runstop=([a-f0-9]+)/,
+    )?.[1];
     sessions.delete(token);
     res.setHeader(
       'Set-Cookie',
@@ -643,7 +653,37 @@ async function api(req, res, url) {
   if (path === '/api/search' && req.method === 'GET') {
     const query = clean(url.searchParams.get('q'), 120);
     if (query.length < 2) fail('Enter at least two characters to search.');
-    return json(res, 200, { places: await searchPlaces(query) });
+    // Match imported and community stores even if geocoding is down.
+    const words = query
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .split(/ +/);
+    const stores = [
+      ...read('stores'),
+      ...read('submissions').filter((row) => row.type === 'store'),
+    ]
+      .filter((store) => {
+        const text = [store.name, store.chain, store.address, store.area]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, ' ');
+        return words.every((word) => text.includes(word));
+      })
+      .map((store) => ({
+        name: [store.name, store.address || store.area].filter(Boolean).join(', '),
+        lat: store.lat,
+        lng: store.lng,
+        facilityId: store.id,
+      }));
+    let places = [];
+    try {
+      places = await searchPlaces(query);
+    } catch (error) {
+      if (!stores.length) throw error;
+    }
+    return json(res, 200, { places: [...stores, ...places] });
   }
   if (path === '/api/facility' && req.method === 'GET') {
     const facility = await findFacility(clean(url.searchParams.get('id')));
@@ -678,7 +718,11 @@ async function api(req, res, url) {
       const rows = read(collection).filter(
         (row) => row.userId !== user.id || row.facility.id !== facilityId,
       );
-      rows.push({ userId: user.id, facility, createdAt: new Date().toISOString() });
+      rows.push({
+        userId: user.id,
+        facility,
+        createdAt: new Date().toISOString(),
+      });
       save(collection, rows);
       return json(res, 200, { ok: true });
     }
@@ -742,11 +786,14 @@ async function api(req, res, url) {
       return [];
     });
     // Council requests finish first. Always read shared submissions fresh from disk after them.
+    const stores = read('stores');
     facilities.push(
       ...read('submissions').filter((row) => distance(center, row) <= radius),
+      ...stores.filter((row) => distance(center, row) <= radius),
     );
     const reports = read('reports');
     return json(res, 200, {
+      storesAvailable: stores.length > 0,
       facilities: facilities.map((row) => ({
         ...row,
         openReports: reports.filter(
@@ -765,7 +812,7 @@ async function api(req, res, url) {
       point = position(input);
     const existing = existingImport('submissions', input, user);
     if (existing) return json(res, 200, { facility: existing });
-    if (!['toilet', 'water'].includes(input.type)) fail('Choose a facility type.');
+    if (!['toilet', 'water', 'store'].includes(input.type)) fail('Choose a facility type.');
     if (!clean(input.name)) fail('Give this facility a name.');
     const photos = preparePhotos(input.photos);
     const row = {
@@ -776,7 +823,11 @@ async function api(req, res, url) {
       amenities: Array.isArray(input.amenities)
         ? [
             ...new Set(
-              input.amenities.filter((value) => allowedAmenities.includes(value)),
+              input.amenities.filter((value) =>
+                input.type === 'store'
+                  ? value === 'accessible'
+                  : allowedAmenities.includes(value),
+              ),
             ),
           ]
         : [],
@@ -792,7 +843,10 @@ async function api(req, res, url) {
       ...(input.clientId ? { clientId: input.clientId } : {}),
     };
     if (row.type === 'toilet') {
-      row.toiletDetails = submissionToiletDetails(input.toiletDetails, row.amenities);
+      row.toiletDetails = submissionToiletDetails(
+        input.toiletDetails,
+        row.amenities,
+      );
       row.amenities = row.amenities.filter((key) => key !== 'unisex');
       if (row.toiletDetails.unisex === true) row.amenities.push('unisex');
     }

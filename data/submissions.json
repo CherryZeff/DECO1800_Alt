@@ -40,5 +40,46 @@
     "photos": [
       "79a58b0f-b3f6-4352-98dd-7923d82de811.webp"
     ]
+  },
+  {
+    "id": "community:cabf760f-54ed-4c5a-a6f4-870ec4c9aad4",
+    "type": "water",
+    "name": "Riverside Wter Fountain",
+    "lat": -27.492354956094257,
+    "lng": 153.0051863193512,
+    "amenities": [
+      "bottle",
+      "dog"
+    ],
+    "description": "",
+    "address": "",
+    "hours": "Opening hours not provided",
+    "restrictions": [],
+    "source": "Community",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-15T10:30:16.952Z",
+    "photos": [
+      "10876765-a9c6-4719-993e-6c6df3d34ac8.webp"
+    ]
+  },
+  {
+    "id": "community:fe2778ec-c713-46ce-9c40-7b5021628ac3",
+    "type": "store",
+    "name": "Chai's Supermarket",
+    "lat": -27.494543902925983,
+    "lng": 153.0027160048485,
+    "amenities": [
+      "accessible"
+    ],
+    "description": "",
+    "address": "",
+    "hours": "6:00am - 9:00 pm",
+    "restrictions": [],
+    "source": "Community",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-15T11:10:59.060Z",
+    "photos": []
   }
 ]

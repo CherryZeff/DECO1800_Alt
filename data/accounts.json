@@ -11,7 +11,9 @@
       "babychange": false,
       "bottle": false,
       "hideIssues": false,
-      "radius": 3000
+      "allowFerries": true,
+      "radius": 3000,
+      "runningSpeed": 10
     },
     "createdAt": "2026-10-13T07:25:45.930Z"
   },

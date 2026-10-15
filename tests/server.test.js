@@ -1073,3 +1073,74 @@ test('ferry estimates use crossing duration rather than running speed', async ()
   route.legs[0].steps = [{ mode: 'walking', distance: 5000 }];
   assert.deepEqual(routeEstimate(route, 10), { minutes: 30, hasFerry: false });
 });
+
+test('imported stores obey radius, support details and local name search, and stay distinct from submissions', async () => {
+  const store = {
+    id: 'store:node:123',
+    type: 'store',
+    name: 'NightOwl Test',
+    chain: 'NightOwl',
+    lat: -27.47,
+    lng: 153.025,
+    area: 'Brisbane',
+    address: '123 Test Street',
+    hours: '24/7',
+    amenities: [],
+    source: 'OpenStreetMap contributors (ODbL)',
+  };
+  writeFileSync(
+    join(directory, 'stores.json'),
+    JSON.stringify([store, { ...store, id: 'store:node:456', lat: -27.8 }]),
+  );
+  try {
+    const nearby = await request(
+      '/api/facilities?lat=-27.47&lng=153.025&radius=5000',
+    );
+    assert.deepEqual(
+      nearby.result.facilities
+        .filter((row) => row.type === 'store')
+        .map((row) => row.id),
+      [store.id],
+    );
+    const detail = await request('/api/facility?id=' + encodeURIComponent(store.id));
+    assert.equal(detail.result.facility.hours, '24/7');
+    const search = await request('/api/search?q=NightOwl%20Test');
+    assert.equal(search.result.places[0].facilityId, store.id);
+    const favourite = await request(
+      '/api/favourites',
+      'POST',
+      { facilityId: store.id },
+      true,
+    );
+    assert.equal(favourite.response.status, 200);
+    assert.ok(
+      !JSON.parse(readFileSync(join(directory, 'submissions.json'))).some(
+        (row) => row.id === store.id,
+      ),
+    );
+  } finally {
+    writeFileSync(join(directory, 'stores.json'), '[]\n');
+  }
+});
+
+test('community stores require login, persist separately, reload and appear in search', async () => {
+  const input = { type: 'store', name: 'Independent corner store', lat: -27.47, lng: 153.025, hours: 'Mo-Su 06:00-22:00', description: 'Beside the park', amenities: ['accessible', 'unisex', 'bottle'], toiletDetails: { shower: true } };
+  assert.equal((await request('/api/submissions', 'POST', input)).response.status, 401);
+  const created = await request('/api/submissions', 'POST', input, true);
+  assert.equal(created.response.status, 201);
+  const facility = created.result.facility;
+  assert.equal(facility.source, 'Community');
+  assert.deepEqual(facility.amenities, ['accessible']);
+  assert.equal(facility.toiletDetails, undefined);
+  const saved = JSON.parse(readFileSync(join(directory, 'submissions.json'))).find(row => row.id === facility.id);
+  assert.equal(saved.hours, input.hours);
+  assert.equal(saved.description, input.description);
+  assert.deepEqual(JSON.parse(readFileSync(join(directory, 'stores.json'))), []);
+  const near = await request('/api/facilities?lat=-27.47&lng=153.025&radius=5000');
+  assert.ok(near.result.facilities.some(row => row.id === facility.id && row.type === 'store'));
+  const far = await request('/api/facilities?lat=0&lng=0&radius=5000');
+  assert.ok(!far.result.facilities.some(row => row.id === facility.id));
+  const search = await request('/api/search?q=Independent%20corner');
+  const match = search.result.places.find(row => row.facilityId === facility.id);
+  assert.equal(match.name, input.name);
+});

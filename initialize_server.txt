@@ -156,7 +156,7 @@ B. Bring your existing local JSON accounts, submissions, reports and photos:
      sudo chown -R www-data:www-data /var/lib/parkpal
 
    This copy is for initial migration, not routine deployments: copying old JSON
-   onto a live site would overwrite newer contributions. Keep all six JSON files
+   onto a live site would overwrite newer contributions. Keep all seven JSON files
    and the photos directory together. Remove the temporary seed copy after you
    have verified the migration and retained a private backup.
 
@@ -354,7 +354,7 @@ This private migration backup is not loaded by the app but still uses disk space
 archive or remove it only after checking saved routes. Keep regular backups too.
 
 If restoring data, first stop Node and back up the current directory. Restore
-all six JSON files AND photos from the same backup, reapply www-data ownership,
+all seven JSON files AND photos from the same backup, reapply www-data ownership,
 and restart. Do not merge account IDs or facility IDs by hand.
 
 
@@ -465,3 +465,20 @@ https://nodejs.org/en/download
 App-specific decisions were checked against this repository's server.js,
 package.json and frontend API calls: entry point, Node requirement, environment
 variables, upload limits, origin checks, file storage and in-memory sessions.
+
+
+CONVENIENCE STORE SNAPSHOT
+ParkPal now reads stores.json from DATA_DIR alongside the six account/community
+collections. The importer uses OpenStreetMap, not Google, and needs no API key.
+It imports only the supported chains within Brisbane, Logan and Ipswich council
+areas. Unknown opening hours remain unknown; OSM coverage is not exhaustive.
+
+From the deployed project directory, refresh only this snapshot with:
+  sudo -u www-data env DATA_DIR=/var/lib/parkpal /usr/bin/node scripts/import-stores.js
+
+The importer automatically tries three global Overpass services on server/network
+errors, with a 60-second timeout per attempt. OVERPASS_URL selects one endpoint
+only and disables fallback (see README.md). A failed import preserves the old
+snapshot. All three areas must succeed before a replacement is written.
+No restart is needed after import; refresh the map. Do not overwrite the other
+live JSON files or photos when refreshing store data. Back up stores.json too.

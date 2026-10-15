@@ -8,6 +8,7 @@
   --soft: #f0f3ec;
   --line: #d8ded2;
   --water: #386e60;
+  --store: #e781ab;
   --header-height: 72px;
   --nav-height: calc(78px + env(safe-area-inset-bottom));
   --shadow: 0 10px 35px #18251d24;
@@ -275,7 +276,7 @@ summary:focus-visible {
   height: 26px;
 }
 
-/* Home: a full map with prominent controls and an overlaid bottom sheet. */
+/* Home: a full map with prominent controls. */
 .map-layout {
   position: relative;
   height: calc(100dvh - var(--header-height) - var(--nav-height));
@@ -390,74 +391,7 @@ summary:focus-visible {
 .picking .map-top {
   display: none;
 }
-.picking .bottom-sheet {
-  visibility: hidden;
-}
 
-/* The handle is a real button. JavaScript also accepts a swipe on it. */
-.bottom-sheet {
-  position: absolute;
-  z-index: 800;
-  left: 24px;
-  bottom: 20px;
-  width: 460px;
-  max-width: calc(100% - 48px);
-  max-height: calc(100% - 28px);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  box-shadow: var(--shadow);
-  padding: 0 20px 16px;
-  display: flex;
-  flex-direction: column;
-}
-.bottom-sheet[data-state='expanded'] {
-  height: min(76%, 680px);
-}
-.sheet-toggle {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 0;
-  background: none;
-  border: 0;
-  flex-shrink: 0;
-  touch-action: none;
-}
-.sheet-grip {
-  display: block;
-  width: 44px;
-  height: 5px;
-  border-radius: 5px;
-  background: #b8c1b0;
-}
-.sheet-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 10px;
-  font-size: 21px;
-  font-weight: 750;
-}
-#sheet-action {
-  font-size: 14px;
-  color: var(--orange-dark);
-  font-weight: 650;
-  white-space: nowrap;
-}
-.sheet-content {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  padding: 4px 2px 0;
-}
-.sheet-heading {
-  font-size: 23px;
-  letter-spacing: -0.5px;
-  margin: 0;
-}
 .section-heading {
   display: flex;
   align-items: center;
@@ -618,8 +552,7 @@ summary:focus-visible {
   background: #dc622d;
 }
 .marker-inner.community {
-  background: var(--ink);
-  border-style: dashed;
+  border: 3px dotted #111;
 }
 .marker-issue {
   position: absolute;
@@ -1080,7 +1013,7 @@ textarea {
   z-index: 2000;
 }
 
-/* Phone: keep the map on screen, with the list sheet above the bottom navigation. */
+/* Phone layouts retain large controls above the bottom navigation. */
 @media (max-width: 700px) {
   :root {
     --header-height: 64px;
@@ -1126,24 +1059,6 @@ textarea {
   .leaflet-control-zoom {
     margin-right: 13px !important;
     margin-top: 139px !important;
-  }
-  .bottom-sheet {
-    left: 0;
-    bottom: 22px;
-    width: 100%;
-    max-width: 100%;
-    border-radius: 20px 20px 0 0;
-    padding: 0 16px 10px;
-  }
-  .bottom-sheet[data-state='expanded'] {
-    height: 76%;
-  }
-  .sheet-title {
-    font-size: 20px;
-  }
-  .sheet-toggle {
-    padding: 10px 0;
-    gap: 8px;
   }
   .filters {
     margin-bottom: 8px;
@@ -1219,9 +1134,6 @@ textarea {
     flex-direction: column;
     gap: 0;
   }
-  .sheet-title {
-    font-size: 18px;
-  }
   .button-row {
     flex-wrap: wrap;
   }
@@ -1286,9 +1198,6 @@ textarea {
 .nearest-mode #retry-data,
 .nearest-mode .list-caption a {
   display: none;
-}
-.nearest-mode .sheet-title {
-  font-size: 18px;
 }
 .radius-settings {
   padding: 22px;
@@ -1357,7 +1266,7 @@ textarea {
   }
 }
 
-/* Search is a submitted place lookup, separate from the facility-list filter. */
+/* Search runs on submission and displays places and imported stores. */
 .place-search {
   position: relative;
   display: flex;
@@ -1547,7 +1456,6 @@ textarea {
   color: #171d1a;
 }
 [data-theme='dark'] .facility-cluster span,
-[data-theme='dark'] .marker-inner.community,
 [data-theme='dark'] .route-stats,
 [data-theme='dark'] .pick-banner {
   background: #233126;
@@ -1735,4 +1643,177 @@ textarea {
 .route-bubble-button {
   max-width: 200px;
   white-space: normal;
+}
+
+/* Home map: one compact header and thumb-sized controls, with no facility sheet. */
+.index-page {
+  --header-height: 72px;
+}
+.index-page .topbar {
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 10px 16px;
+}
+.index-page .brand {
+  flex: 0 0 40px;
+}
+.index-page .brand img {
+  width: 40px;
+  height: 40px;
+}
+.index-page .place-search {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+.index-page .place-search input {
+  font-size: 16px;
+}
+.index-page .place-results {
+  min-width: 0;
+}
+.index-page .map-tools {
+  display: flex;
+  top: 14px;
+  right: 14px;
+}
+.index-page .add-map-button {
+  flex-direction: row;
+  width: 86px;
+  height: 50px;
+  gap: 4px;
+  font-size: 16px;
+  background: var(--orange);
+  color: #171c18;
+  border-color: #171c18;
+}
+.index-page .map-top {
+  top: 14px;
+  left: 14px;
+  max-width: calc(100% - 188px);
+  pointer-events: none;
+}
+.index-page .location-pill {
+  font-size: 16px;
+  font-weight: 700;
+}
+.index-page .leaflet-control-zoom {
+  margin-top: 76px !important;
+  margin-right: 14px !important;
+}
+.mode-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 450;
+  width: 56px;
+  height: 88px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  line-height: 1;
+  border: 2px solid #171c18;
+  border-radius: 10px;
+  font-size: 30px;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+.mode-arrow .icon {
+  width: 28px;
+  height: 28px;
+}
+.previous-mode {
+  left: 14px;
+}
+.next-mode {
+  right: 14px;
+}
+.mode-arrow[data-mode='all'] {
+  background: #1c211e;
+  color: #fff;
+  border-color: #fff;
+}
+.mode-arrow[data-mode='toilet'] {
+  background: var(--orange);
+  color: #171c18;
+}
+.mode-arrow[data-mode='water'] {
+  background: var(--water);
+  color: #fff;
+}
+.mode-arrow[data-mode='store'],
+.marker-inner.store,
+.facility-symbol.store {
+  background: var(--store);
+  color: #171c18;
+}
+.map-status {
+  position: absolute;
+  z-index: 400;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  text-align: center;
+  font-size: 16px;
+}
+.map-status-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.map-status-actions a,
+.map-status-actions button {
+  font-size: 16px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+#data-warning {
+  max-width: 420px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+.nearest-mode .mode-arrow,
+.picking .mode-arrow,
+.picking .map-status,
+.nearest-mode #radius-link {
+  display: none;
+}
+.nearest-mode #retry-data {
+  display: inline-flex;
+}
+@media (max-width: 768px) {
+  .leaflet-control-zoom {
+    display: none;
+  }
+  .index-page .topbar {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+  .index-page .place-search {
+    gap: 4px;
+  }
+  .index-page .place-search > button {
+    padding-inline: 10px;
+  }
+}
+
+.index-page.nearest-mode .map-tools,
+.index-page.nearest-mode .map-top {
+  display: none;
+}
+
+[data-theme='dark'] .marker-inner.water,
+[data-theme='dark'] .mode-arrow[data-mode='water'] {
+  color: #171c18;
 }

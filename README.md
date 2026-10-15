@@ -1,6 +1,6 @@
 # ParkPal
 
-ParkPal helps runners find Brisbane toilets and drinking water, plan walking routes, and share facilities and problem reports. The interface uses plain HTML, CSS and JavaScript with Leaflet. A small Node server saves shared JSON records and photos. There is no build step or application dependency to install.
+ParkPal helps runners find Brisbane toilets and drinking water plus selected convenience stores in Brisbane, Logan and Ipswich, plan walking routes, and share facilities and problem reports. The interface uses plain HTML, CSS and JavaScript with Leaflet. A small Node server saves shared JSON records and photos. There is no build step or application dependency to install.
 
 ## Run locally
 
@@ -16,7 +16,7 @@ Optional environment variables: `PORT` (default 3000), `HOST` (default 0.0.0.0),
 
 | File                                                            | Responsibility                                                          |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `index.html`                                                    | Home map, facility bottom sheet, three closest toilets, new submissions |
+| `index.html`                                                    | Home map, four map modes, three closest toilets, new submissions |
 | `public/accounts.html`                                          | Sign-in, name/email/password editing, browser contribution recovery     |
 | `public/routes.html`                                            | Route planner, running estimates and full-screen elapsed timer                |
 | `public/activity.html`                                          | Reports for favourites and recently visited facilities                  |
@@ -35,6 +35,30 @@ Optional environment variables: `PORT` (default 3000), `HOST` (default 0.0.0.0),
 
 More links to **Account**, **Settings**, and **Log out**. Settings contains running speed, radius, ferry-route opt-in, toilet/water preferences and a browser-local light/dark switch. Activity contains three separate pages: `public/history.html` (Past routes), `public/favourites.html` and `public/activity.html` (Facility activity). New page scripts are `more.js`, `settings.js` and the small pre-paint `theme.js`.
 
+## Convenience store import
+
+**Initial snapshot:** `data/stores.json` contains 229 imported stores across the three council areas: 13 EzyMart, 105 7-Eleven, 53 Shell/Coles Express, 21 NightOwl and 37 Foodary. Opening hours are recorded for 71 stores; 158 are explicitly unknown. These counts describe the initial snapshot and can change on refresh. An empty installation shows a message until its first successful import.
+
+Run `npm run import:stores` (or `node scripts/import-stores.js`) to refresh `data/stores.json`. No API key or extra dependency is required. The script queries OpenStreetMap through [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API), using exact council-area names and Queensland boundary verification of Brisbane, Logan and Ipswich. It includes mapped convenience shops and fuel stations for EzyMart, 7-Eleven, Shell/Coles Express, NightOwl and Foodary, matching name, brand or operator. Other Ampol/Caltex stations are not assumed to be Foodary.
+
+Records include stable OSM IDs, name, chain, coordinates, council area, available address/opening hours, attribution and import time. Way/relation coordinates are bounding-box centres; nearby duplicate records of the same chain within 30 metres are merged. Missing hours display **Opening hours not recorded**; mapped hours are shown as supplied, with no live open/closed calculation. OSM coverage is incomplete and may be outdated; a mapped fuel station does not confirm every convenience-store service. Unmapped branches are not invented.
+
+Only a successful import of all three areas replaces the snapshot. API errors, incomplete responses or empty areas leave the previous file intact. Store requests are read locally during app use; there is no scheduled refresh. Rerun the importer periodically as needed. `DATA_DIR` selects the destination, just as for the server. The importer tries the main Overpass API, Private.coffee, then the global VK Maps mirror sequentially on network/server errors or incomplete responses, with a 60-second limit per attempt. Progress includes the host being queried and its error. Invalid queries (HTTP 400) stop immediately. If every service fails, wait and rerun the same command; no npm reinstall is needed.
+
+`OVERPASS_URL` selects one specific global Overpass instance and disables automatic fallback, for example:
+
+```sh
+OVERPASS_URL=https://overpass-api.de/api/interpreter npm run import:stores
+```
+
+For Zone with `DATA_DIR=/var/lib/parkpal`, run from the project directory:
+
+```sh
+sudo -u www-data env DATA_DIR=/var/lib/parkpal /usr/bin/node scripts/import-stores.js
+```
+
+The next facility refresh sees the new snapshot without restarting. Do not copy your entire local data directory over live account/contribution files. Store data is © [OpenStreetMap contributors, ODbL](https://www.openstreetmap.org/copyright); attribution also appears on the map and in store details.
+
 ## Shared storage
 
 - `data/accounts.json`: accounts, salted password hashes and preferences.
@@ -43,13 +67,14 @@ More links to **Account**, **Settings**, and **Log out**. Settings contains runn
 - `data/routes.json`: routes generated while signed in, including start, ordered stops and creation time; scoped to their account.
 - `data/favourites.json`: each account's saved facilities.
 - `data/visits.json`: each account's facility visits, recorded manually or when included as route stops.
+- `data/stores.json`: imported OpenStreetMap store snapshot (not community submissions).
 - `data/photos/`: uploaded JPEG, PNG and WebP files. Up to three photos per submission, each at most 2 MB. Photos appear in facility details.
 
 Saved routes store only the route ID, user ID, creation date and a draft containing the original start coordinates/label, ordered stop coordinates/names (and facility IDs where applicable), and return-to-start setting. `routes.json` uses readable indented JSON. Calculated geometry, directions, distance and duration are not saved. Reuse loads the original points into the planner without changing the start to your current location, requesting directions, recording visits or saving another entry. Tap **Preview route** to calculate a fresh walking path; successful creation saves a new plan and records facility visits as usual. The new path may differ if map data has changed.
 
 On startup, existing routes are converted to this smaller format if needed. Before rewriting, the server keeps the exact original in a private `routes.backup-<id>.json` beside `routes.json`. These migration backups are not loaded by the app and are excluded from Git; they still occupy disk space until you archive or remove them after checking your saved routes. This is not a replacement for regular backups.
 
-Existing JSON records are retained. Each facility request loads council results first, then reads submissions fresh from disk and applies the same radius. Reports and resolution changes are written before success is returned to the interface. Community records are available to other browsers without signing in; adding facilities and reporting/resolving problems require an account.
+Existing JSON records are retained. Each facility request loads council results first, then reads submissions and imported stores fresh from disk and applies the same radius. Reports and resolution changes are written before success is returned to the interface. Community records are available to other browsers without signing in; adding facilities and reporting/resolving problems require an account.
 
 The server only serves allowed application assets and uploaded images. Account JSON and other project files are not public URLs. Back up the whole data directory together. Run a **single Node process** against each data directory; these JSON files are not a multi-process database.
 
@@ -75,9 +100,9 @@ If that browser's old account was signed out, sign in using the previous browser
 
 More → Settings has a **1–10 km radius slider**, in 1 km steps, defaulting to **5 km**. Save it and return to the map to apply it. Toilet amenities, bottle filling and hiding facilities with unresolved reports are optional facility preferences.
 
-The circular toilet button asks for your location and checks matching toilets within your radius in straight-line distance order. If a toilet has no valid pedestrian path, it tries the next candidate until **three reachable choices** are found or the candidates run out. Other facility markers are hidden. Tap a pin, estimate bubble or list entry to open that toilet's route and **automatically start the full-screen run and timer** once the route is revalidated. A failed route does not start the run or save a plan. The top-left back button returns to exploration; the route page links back to the toilet choices. General service/network failures stop the search with a retry message.
+The circular toilet button asks for your location and checks matching toilets within your radius in straight-line distance order. If a toilet has no valid pedestrian path, it tries the next candidate until **three reachable choices** are found or the candidates run out. Other facility markers are hidden. Tap a pin or estimate bubble to open that toilet's route and **automatically start the full-screen run and timer** once the route is revalidated. A failed route does not start the run or save a plan. The top-left back button returns to exploration; the route page links back to the toilet choices. General service/network failures stop the search with a retry message.
 
-The top search bar finds suburbs and named places in the Brisbane region. Submit a query, choose a result, and facilities reload around it using your saved radius. This is separate from the facility-name filter in the sheet. Normal exploration has clustered markers, type filters, name/address search and a tap/swipe bottom sheet. GPS denial leaves a labelled Brisbane preview; users can also choose route starts on the map. Panning does not fetch a new area automatically. Preferences can hide a saved submission if it does not match them.
+The compact black home header contains the running logo and search. Search finds suburbs, named places and imported store names/addresses across the Brisbane region (including Logan and Ipswich). Choosing a store recentres the map and opens its details. Local store matches remain available if geocoding fails. Vertical rectangular side buttons show the destination facility icon above a < or > symbol and cycle **All → Toilets → Water fountains → Convenience stores** in either direction; each button's colour shows its destination mode. The top-left map pill displays the current mode, aligned with the top-right controls. Tap pins for facility details. Stores are pink; community pins retain their type colour with a black dotted outline. The orange **+ Add** button sits left of Locate. Map zoom buttons appear above 768px only; touch users can pinch to zoom. The former bottom sheet and separate name filter are removed. GPS denial leaves a labelled Brisbane preview. Panning alone does not reload the radius; location/search/refresh do. Toilet and water amenity preferences do not hide stores, although the hide-problems preference applies to every type.
 
 Routes include up to ten ordered facility or map stops, reordering/removal, and an optional return to start. The simplified planner shows the mapped pedestrian path and distance. **Preview route** calculates an estimated running time using your Settings speed (6–20 km/h, in 0.5 km/h steps, default 10). **Start run** fills the browser viewport with the map, an elapsed timer, your configured running speed, and large **Locate me** / **End route** controls. The speed is a planning setting, not a GPS measurement. Locate me adds your current position without changing the saved start or stops. End route returns to the planner and displays elapsed time. The server requests walking-route alternatives and checks every returned step. Ferries are excluded by default. **Settings → Route preferences → Allow ferries** permits pedestrian/ferry routes in the planner and toilet searches; driving, train, bus, unknown modes and reported motorway/restricted classes remain excluded. The setting persists with the account, or in browser storage for guests. If no acceptable alternative is returned, it shows an error and saves nothing. It does not remove unsafe pieces and join the remaining line. With ferries disabled, this provider cannot guarantee a ferry-free alternative; roads with pedestrian access and crossings may be included, and OSM access data can be incomplete. Follow local signs. Failed routing shows an error rather than an invented line. The timer uses elapsed wall-clock time so it catches up after the tab is backgrounded. Reloading or closing the page resets it; durations and GPS tracks are not saved. There is no turn-by-turn navigation, continuous location tracking or automatic rerouting. The full-screen view fills the browser viewport rather than requiring the device Fullscreen API.
 
@@ -109,3 +134,6 @@ See [initialize_server.txt](initialize_server.txt) for researched, step-by-step 
 ## Checks
 
 Run `npm test` (or `node --test tests/server.test.js`). Backend tests use a temporary data directory and mocked council/routing responses, leaving project records intact. They cover authentication, file access, radius queries, submission reloads, reports, photos, import retries, search caching, route-mode rejection, account editing, saved routes, favourites, visits, account isolation, Council shower/gender flags, running-speed validation and preview requests that leave routes/visits unchanged. Browser checks should also cover phone/desktop layout and route-line rendering.
+
+
+Community contributions also accept **Convenience store**. Choose a map pin or current location, enter its name, and optionally add wheelchair accessibility, opening hours, a description and photos. Toilet-specific fields are hidden. These records are saved in `submissions.json`, appear as pink pins with black dotted outlines, and are included in store-name search. They are independent of the imported snapshot and may include other convenience-store chains or independent shops.

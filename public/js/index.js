@@ -1,11 +1,9 @@
-// Home page: nearby facilities, the bottom sheet, and new facility pins.
+// Home page: nearby facilities, map modes, and new facility pins.
 import {
   find,
   icon,
   escapeHTML,
-  titleCase,
   distanceBetween,
-  formatDistance,
   notify,
   getLocation,
   handleForm,
@@ -14,7 +12,6 @@ import {
   pageURL,
 } from './helpers.js';
 import {
-  getAccount,
   requireAccount,
   addFacility,
   loadAccount,
@@ -37,9 +34,8 @@ const state = {
   radius: 5000,
   facilities: [],
   filter: 'all',
-  search: '',
-  limit: 20,
   warnings: [],
+  storesAvailable: true,
   pin: null,
   picking: false,
 };
@@ -70,7 +66,11 @@ function matchesPreferences(facility) {
   const preferences = getPreferences();
   if (preferences.hideIssues && facility.openReports) return false;
   const keys =
-    facility.type === 'toilet' ? ['accessible', 'unisex', 'babychange'] : ['bottle'];
+    facility.type === 'toilet'
+      ? ['accessible', 'unisex', 'babychange']
+      : facility.type === 'water'
+        ? ['bottle']
+        : [];
   return keys.every((key) => !preferences[key] || facility.amenities.includes(key));
 }
 
@@ -80,12 +80,7 @@ function matchingFacilities() {
       const matchesType = nearestMode
         ? facility.type === 'toilet'
         : state.filter === 'all' || state.filter === facility.type;
-      const matchesSearch = `${facility.name} ${facility.address}`
-        .toLowerCase()
-        .includes(state.search);
-      return (
-        matchesType && (nearestMode || matchesSearch) && matchesPreferences(facility)
-      );
+      return matchesType && matchesPreferences(facility);
     })
     .sort(
       (first, second) =>
@@ -113,7 +108,12 @@ function chooseFacility(facility) {
     origin: { ...state.center },
     originLabel: 'Your location',
     stops: [
-      { id: facility.id, name: facility.name, lat: facility.lat, lng: facility.lng },
+      {
+        id: facility.id,
+        name: facility.name,
+        lat: facility.lat,
+        lng: facility.lng,
+      },
     ],
     roundTrip: false,
   });
@@ -127,35 +127,12 @@ function renderFacilities() {
       ? `Finding reachable toilets… ${facilities.length} found`
       : `${facilities.length} reachable toilets within ${state.radius / 1000} km`
     : `${facilities.length} nearby stops`;
-  find('#data-warning').textContent = state.warnings.join(' ');
-  find('#data-warning').hidden = !state.warnings.length;
-  const shown = facilities.slice(0, state.limit);
-  find('#facility-list').innerHTML =
-    shown
-      .map(
-        (facility) => `
-    <button class="facility-card" data-facility="${escapeHTML(facility.id)}">
-      <span class="facility-symbol ${facility.type}">${icon(facility.type)}</span>
-      <span class="facility-copy">
-        <strong>${escapeHTML(titleCase(facility.name))}</strong>
-        <span class="${facility.openReports ? 'issue-text' : 'muted'}">${facility.openReports ? `${facility.openReports} open reports` : facility.type === 'water' ? 'Drinking water' : 'Public toilet'}${facility.source === 'Community' ? ' · Community' : ''}</span>
-      </span>
-      <span class="facility-distance">${formatDistance(distanceBetween(state.center, facility))}</span>
-    </button>
-  `,
-      )
-      .join('') ||
-    `<p class="empty-state">${nearestMode && findingToilets ? 'Checking routes…' : nearestMode ? 'No reachable matching toilets found. Try a larger radius or retry.' : 'No matching stops. Try a larger radius or change your preferences.'}</p>`;
-  if (facilities.length > shown.length) {
-    find('#facility-list').insertAdjacentHTML(
-      'beforeend',
-      '<button id="more-facilities" class="secondary full">Show more stops</button>',
-    );
-    find('#more-facilities').onclick = () => {
-      state.limit += 20;
-      renderFacilities();
-    };
+  const warnings = [...state.warnings];
+  if (!nearestMode && state.filter === 'store' && !state.storesAvailable) {
+    warnings.push('Store locations have not been imported yet.');
   }
+  find('#data-warning').textContent = warnings.join(' ');
+  find('#data-warning').hidden = !warnings.length;
   facilityMap.showFacilities(facilities, !nearestMode);
   if (nearestMode) facilityMap.showRouteChoices(toiletChoices, getRunningSpeed());
 }
@@ -190,7 +167,10 @@ async function loadToiletPreviews(facilities) {
   renderFacilities();
   const choices = toiletChoices;
   if (choices.some((choice) => choice.route) && facilityMap.map) {
-    const bounds = L.latLngBounds([origin.lat, origin.lng], [origin.lat, origin.lng]);
+    const bounds = L.latLngBounds(
+      [origin.lat, origin.lng],
+      [origin.lat, origin.lng],
+    );
     for (const choice of choices) {
       bounds.extend([choice.facility.lat, choice.facility.lng]);
       if (choice.route)
@@ -213,6 +193,7 @@ async function loadFacilities() {
     const result = await getFacilities(state.center, state.radius);
     if (currentRequest !== requestNumber) return false;
     state.facilities = result.facilities;
+    state.storesAvailable = result.storesAvailable !== false;
     state.warnings = result.warnings;
     if (nearestMode && state.warnings.some((warning) => /toilet/i.test(warning)))
       state.facilities = [];
@@ -236,7 +217,6 @@ async function loadFacilities() {
 function updateCenter(point, label) {
   state.center = point;
   state.centerLabel = label;
-  find('#location-label').textContent = `${label} · ${state.radius / 1000} km`;
   facilityMap.setCenter(point, state.radius, label);
   facilityMap.showRadius(!nearestMode);
   find('#radius-link').textContent = `Radius: ${state.radius / 1000} km ↗`;
@@ -255,7 +235,9 @@ async function locate() {
     updateCenter(point, 'Your location');
     const loaded = await loadFacilities();
     if (!loaded)
-      throw new Error('Facilities are still loading or unavailable. Please try again.');
+      throw new Error(
+        'Facilities are still loading or unavailable. Please try again.',
+      );
     return point;
   } finally {
     find('#locate').disabled = false;
@@ -272,14 +254,13 @@ async function nearestToilet() {
   requestNumber++; // Ignore an older area request that finishes after this switch.
   document.body.classList.add('nearest-mode');
   find('#nearest-back').hidden = false;
-  find('#sheet-title').textContent = 'Closest toilets';
+  find('#map-mode').textContent = 'Closest toilets';
   find('#nearest-toilet').disabled = true;
   state.facilities = [];
   state.warnings = [];
   renderFacilities();
   find('#facility-count').textContent = 'Finding your location…';
   facilityMap.showRadius(false);
-  setSheetExpanded(false);
   try {
     const point = await getLocation();
     if (current !== nearestRequest) return;
@@ -289,7 +270,7 @@ async function nearestToilet() {
     const toilets = visibleFacilities();
     notify(
       toilets.length
-        ? 'Tap a toilet pin, bubble or list entry to start your route.'
+        ? 'Tap a toilet pin or bubble to start your route.'
         : 'No matching toilets available in this radius. Go back to change your radius or retry.',
     );
   } catch (error) {
@@ -313,7 +294,7 @@ function leaveNearestMode() {
   document.body.classList.remove('nearest-mode');
   find('#nearest-back').hidden = true;
   find('#nearest-toilet').disabled = false;
-  find('#sheet-title').textContent = 'Nearby stops';
+  updateModeControls();
   updateCenter(previousArea.center, previousArea.centerLabel);
   state.facilities = [];
   renderFacilities();
@@ -323,42 +304,49 @@ function leaveNearestMode() {
   loadFacilities();
 }
 
-// The sheet works with a tap, keyboard activation, or a vertical handle swipe.
-function setSheetExpanded(expanded) {
-  find('#facility-sheet').dataset.state = expanded ? 'expanded' : 'peek';
-  find('#sheet-content').hidden = !expanded;
-  find('#toggle-sheet').setAttribute('aria-expanded', String(expanded));
-  find('#sheet-action').textContent = expanded ? 'Hide list ↓' : 'Show list ↑';
-}
-find('#toggle-sheet').onclick = () =>
-  setSheetExpanded(find('#facility-sheet').dataset.state !== 'expanded');
-let pointerStart;
-let skipClick = false;
-find('#toggle-sheet').addEventListener('pointerdown', (event) => {
-  pointerStart = event.clientY;
-  event.currentTarget.setPointerCapture(event.pointerId);
-});
-find('#toggle-sheet').addEventListener('pointerup', (event) => {
-  const change = event.clientY - pointerStart;
-  if (Math.abs(change) > 25) {
-    skipClick = true;
-    setSheetExpanded(change < 0);
+// Each button previews the icon and colour of its destination mode.
+const modes = [
+  { type: 'all', label: 'All stops' },
+  { type: 'toilet', label: 'Toilets' },
+  { type: 'water', label: 'Water fountains' },
+  { type: 'store', label: 'Convenience stores' },
+];
+function updateModeControls() {
+  const current = modes.findIndex((mode) => mode.type === state.filter);
+  find('#map-mode').textContent = modes[current].label;
+  for (const [selector, direction] of [
+    ['#previous-mode', -1],
+    ['#next-mode', 1],
+  ]) {
+    const next = modes[(current + direction + modes.length) % modes.length];
+    const button = find(selector);
+    button.dataset.mode = next.type;
+    button.innerHTML = `${icon(next.type)}<span aria-hidden="true">${direction < 0 ? '&lt;' : '&gt;'}</span>`;
+    button.setAttribute('aria-label', `Show ${next.label.toLowerCase()}`);
+    button.title = next.label;
+    button.onclick = () => {
+      state.filter = next.type;
+      updateModeControls();
+      renderFacilities();
+    };
   }
-});
-find('#toggle-sheet').addEventListener(
-  'click',
-  (event) => {
-    if (skipClick) {
-      event.stopImmediatePropagation();
-      skipClick = false;
-    }
-  },
-  true,
-);
+}
+updateModeControls();
 
 function updateAmenities() {
-  const toilet = find('#add-form [name=type]').value === 'toilet';
-  const keys = toilet ? ['accessible', 'babychange'] : ['accessible', 'bottle', 'dog'];
+  const type = find('#add-form [name=type]').value;
+  const toilet = type === 'toilet';
+  const keys = toilet
+    ? ['accessible', 'babychange']
+    : type === 'store'
+      ? ['accessible']
+      : ['accessible', 'bottle', 'dog'];
+  find('#add-form [name=name]').placeholder =
+    type === 'store'
+      ? 'e.g. NightOwl West End'
+      : toilet
+        ? 'e.g. Riverside public toilets'
+        : 'e.g. Riverside drinking fountain';
   find('#add-toilet-details').hidden = !toilet;
   find('#add-toilet-details').disabled = !toilet;
   find('#add-amenities').innerHTML = keys
@@ -398,7 +386,6 @@ find('#add-map-location').onclick = () => {
   if (!facilityMap.map)
     return notify('The map is unavailable. Try using your location.');
   find('#add-dialog').close();
-  setSheetExpanded(false);
   state.picking = true;
   document.body.classList.add('picking');
   facilityMap.setPicking(true);
@@ -465,7 +452,6 @@ handleForm(find('#add-form'), async (form) => {
 // Page-specific controls. Normal navigation uses links in the HTML.
 find('#add-form [name=type]').onchange = updateAmenities;
 find('#add-facility').onclick = showAddForm;
-find('#add-from-list').onclick = showAddForm;
 find('#nearest-toilet').onclick = nearestToilet;
 find('#locate').onclick = () => locate().catch((error) => notify(error.message));
 find('#retry-data').onclick = loadFacilities;
@@ -480,30 +466,6 @@ find('#facility-photos').onchange = (event) => {
     find('#add-form .form-error').textContent = error.message;
   }
 };
-find('#facility-search').oninput = (event) => {
-  state.search = event.target.value.trim().toLowerCase();
-  state.limit = 20;
-  renderFacilities();
-};
-document.querySelectorAll('[data-filter]').forEach((button) => {
-  button.onclick = () => {
-    state.filter = button.dataset.filter;
-    document.querySelectorAll('[data-filter]').forEach((filter) => {
-      const active = filter === button;
-      filter.classList.toggle('active', active);
-      filter.setAttribute('aria-pressed', String(active));
-    });
-    state.limit = 20;
-    renderFacilities();
-  };
-});
-find('#facility-list').onclick = (event) => {
-  const button = event.target.closest('[data-facility]');
-  if (!button) return;
-  const facility = state.facilities.find((item) => item.id === button.dataset.facility);
-  if (facility) chooseFacility(facility);
-};
-
 // Search only on submit, not every keystroke. Choosing a result reloads that area.
 let placeResults = [];
 find('#place-search').onsubmit = async (event) => {
@@ -513,7 +475,7 @@ find('#place-search').onsubmit = async (event) => {
   button.disabled = true;
   find('#place-results').hidden = false;
   find('#place-options').replaceChildren();
-  find('#place-status').textContent = 'Searching Brisbane places…';
+  find('#place-status').textContent = 'Searching places and stores…';
   try {
     placeResults = (
       await apiRequest(
@@ -522,7 +484,7 @@ find('#place-search').onsubmit = async (event) => {
     ).places;
     find('#place-status').textContent = placeResults.length
       ? 'Choose a place to explore nearby facilities.'
-      : 'No places found in the Brisbane region. Try a suburb or park name.';
+      : 'No places found. Try a suburb, park or store name.';
     find('#place-options').innerHTML = placeResults
       .map(
         (place, index) =>
@@ -535,7 +497,7 @@ find('#place-search').onsubmit = async (event) => {
     button.disabled = false;
   }
 };
-find('#place-options').onclick = (event) => {
+find('#place-options').onclick = async (event) => {
   const button = event.target.closest('[data-place]');
   if (!button) return;
   const place = placeResults[Number(button.dataset.place)];
@@ -543,7 +505,15 @@ find('#place-options').onclick = (event) => {
   sessionStorage.setItem('parkpal.locationAsked', 'yes');
   updateCenter({ lat: place.lat, lng: place.lng }, place.name.split(',')[0]);
   find('#place-results').hidden = true;
-  loadFacilities();
+  await loadFacilities();
+  if (place.facilityId) {
+    const facility = state.facilities.find((row) => row.id === place.facilityId);
+    if (facility) {
+      if (!visibleFacilities().includes(facility)) facilityMap.addFacility(facility);
+      facilityMap.focus(facility);
+      details.open(facility);
+    }
+  }
 };
 find('#close-search').onclick = () => {
   find('#place-results').hidden = true;

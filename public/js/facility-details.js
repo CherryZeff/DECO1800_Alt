@@ -65,7 +65,7 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
     if (toilet.unisex || facility.amenities.includes('unisex')) types.push('Unisex');
     if (toilet.allgender) types.push('Gender-neutral (all-gender)');
     find('#facility-detail').innerHTML = `
-      <div class="detail-type">${icon(facility.type)} ${facility.type === 'toilet' ? 'Public toilet' : 'Drinking water'}</div>
+      <div class="detail-type">${icon(facility.type)} ${facility.type === 'toilet' ? 'Public toilet' : facility.type === 'store' ? 'Convenience store' : 'Drinking water'}</div>
       <h2>${escapeHTML(titleCase(facility.name))}</h2>
       <p class="detail-address">${escapeHTML(titleCase(facility.address || 'Community map pin'))}</p>
       <div class="tag-list">${amenities}</div>
@@ -81,7 +81,7 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
             `<a href="${photoURL(filename)}" target="_blank" rel="noopener"><img src="${photoURL(filename)}" alt="Photo of ${escapeHTML(facility.name)}" loading="lazy"></a>`,
         )
         .join('')}</div>
-      <p class="fine-print">${facility.source === 'Community' ? 'Community contribution · unverified' : 'Source: Brisbane City Council'}</p>
+      <p class="fine-print">${facility.source === 'Community' ? 'Community contribution · unverified' : `Source: ${escapeHTML(facility.source || 'Brisbane City Council')}`}</p>
       <div class="button-row">
         <button id="detail-add-stop" class="primary">${icon('plus')}Add to route</button>
         <button id="detail-directions" class="secondary">${icon('route')}Route here</button>

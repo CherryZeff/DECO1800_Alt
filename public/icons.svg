@@ -1,4 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-all" viewBox="0 0 24 24">
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+  </symbol>
   <symbol id="i-bolt" viewBox="0 0 24 24">
     <path d="m13 2-9 12h7l-1 8 10-13h-7z" />
   </symbol>
@@ -6,6 +12,7 @@
     <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z" />
     <circle cx="12" cy="10" r="2.5" />
   </symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><path d="M3 10h18l-2-6H5zM4 10v11h16V10M9 21v-7h6v7M3 10v2h18v-2" /></symbol>
   <symbol id="i-water" viewBox="0 0 24 24">
     <path d="M12 2S5 10 5 15a7 7 0 0 0 14 0c0-5-7-13-7-13Z" />
     <path d="M9 15a3 3 0 0 0 3 3" />
