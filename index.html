@@ -2,10 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1c211e" />
     <meta
       name="description"
@@ -35,6 +32,7 @@
     ></script>
     <link rel="stylesheet" href="./public/style.css" />
     <script type="module" src="./public/js/index.js"></script>
+    <script src="./public/js/theme.js"></script>
   </head>
   <body class="index-page">
     <!-- The same simple header and navigation appear on every page. -->
@@ -44,7 +42,31 @@
         ParkPal
         <span>.</span>
       </a>
-      <span class="header-tagline">Your next stop, sorted.</span>
+      <form id="place-search" class="place-search" role="search">
+        <label class="sr-only" for="place-query">Search a Brisbane suburb or place</label>
+        <input
+          id="place-query"
+          name="place"
+          type="search"
+          placeholder="Suburb or place name"
+          minlength="2"
+          maxlength="120"
+          required
+          autocomplete="off"
+        />
+        <button type="submit" aria-label="Search places">Search</button>
+        <div id="place-results" class="place-results" hidden>
+          <p id="place-status" role="status"></p>
+          <div id="place-options"></div>
+          <p class="fine-print">
+            Search ©
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"
+              >OpenStreetMap contributors</a
+            >
+          </p>
+          <button id="close-search" type="button" class="text-button">Close results</button>
+        </div>
+      </form>
     </header>
     <!-- The map stays visible behind a collapsible, scrollable facility sheet. -->
     <main class="map-layout">
@@ -60,9 +82,7 @@
         ← Back to all stops
       </button>
       <div class="map-top">
-        <p id="location-label" class="location-pill">
-          Brisbane preview · 5 km radius
-        </p>
+        <p id="location-label" class="location-pill">Brisbane preview · 5 km radius</p>
       </div>
       <div class="map-tools">
         <button id="locate" class="map-button" aria-label="Find my location">
@@ -120,7 +140,7 @@
           <div class="section-heading">
             <h1 class="sheet-heading">Your next stop</h1>
             <a
-              href="./public/accounts.html#radius-settings"
+              href="./public/settings.html#radius-settings"
               class="text-button"
               id="radius-link"
               >Radius: 5 km ↗</a
@@ -130,37 +150,25 @@
             <svg class="icon" aria-hidden="true">
               <use href="./public/icons.svg#i-search"></use>
             </svg>
-            <input
-              id="facility-search"
-              type="search"
-              placeholder="Search nearby facilities"
-            />
+            <input id="facility-search" type="search" placeholder="Search nearby facilities" />
             <span class="sr-only">Search facility names</span>
           </label>
           <div class="list-caption">
             <p id="facility-count" role="status">Finding facilities…</p>
-            <a href="./public/accounts.html#preferences" class="text-button"
-              >Preferences ↗</a
-            >
+            <a href="./public/accounts.html#preferences" class="text-button">Preferences ↗</a>
           </div>
           <p class="muted">Distances are straight-line estimates.</p>
           <p id="data-warning" class="notice" role="status" hidden></p>
           <div id="facility-list" class="facility-list">
             <p class="empty-state">Loading council facilities…</p>
           </div>
-          <button id="retry-data" class="secondary full">
-            Refresh facilities
-          </button>
+          <button id="retry-data" class="secondary full">Refresh facilities</button>
           <div class="community-card">
             <h2>Missing a stop?</h2>
             <p>Leave a pin for a toilet or drinking fountain.</p>
-            <button id="add-from-list" class="text-button">
-              Add a facility ↗
-            </button>
+            <button id="add-from-list" class="text-button">Add a facility ↗</button>
           </div>
-          <p class="fine-print">
-            Community contributions and reports are saved and shared.
-          </p>
+          <p class="fine-print">Community contributions and reports are saved and shared.</p>
         </div>
       </section>
     </main>
@@ -193,11 +201,11 @@
         </svg>
         <span>Activity</span>
       </a>
-      <a href="./public/accounts.html">
+      <a href="./public/more.html">
         <svg class="icon" aria-hidden="true">
           <use href="./public/icons.svg#i-user"></use>
         </svg>
-        <span>Account</span>
+        <span>More</span>
       </a>
     </nav>
     <dialog id="facility-dialog" class="modal detail-modal">
@@ -264,16 +272,10 @@
         </label>
         <label>
           Location
-          <span id="pin-description" class="pin-description"
-            >Choose a location below.</span
-          >
+          <span id="pin-description" class="pin-description">Choose a location below.</span>
         </label>
         <div class="button-row">
-          <button
-            id="add-current-location"
-            type="button"
-            class="secondary small"
-          >
+          <button id="add-current-location" type="button" class="secondary small">
             <svg class="icon"><use href="./public/icons.svg#i-target" /></svg>
             My location
           </button>
@@ -289,11 +291,7 @@
         <label>
           Opening hours
           <span class="optional">optional</span>
-          <input
-            name="hours"
-            placeholder="e.g. Open 24 hours"
-            maxlength="160"
-          />
+          <input name="hours" placeholder="e.g. Open 24 hours" maxlength="160" />
         </label>
         <label>
           Description
@@ -305,9 +303,7 @@
             placeholder="Anything that helps someone find it."
           ></textarea>
         </label>
-        <label for="facility-photos"
-          >Photos <span class="optional">optional</span></label
-        >
+        <label for="facility-photos">Photos <span class="optional">optional</span></label>
         <input
           id="facility-photos"
           name="photos"
@@ -317,8 +313,7 @@
           aria-describedby="photo-help"
         />
         <p id="photo-help" class="fine-print">
-          Up to 3 photos, 2 MB each. JPEG, PNG or WebP. Photos are shared with
-          the facility.
+          Up to 3 photos, 2 MB each. JPEG, PNG or WebP. Photos are shared with the facility.
         </p>
         <div id="photo-preview" class="photo-preview"></div>
         <p class="fine-print">Appears immediately on the shared map.</p>
@@ -331,9 +326,7 @@
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
     <noscript>
-      <p class="noscript">
-        Enable JavaScript to use ParkPal’s map and account features.
-      </p>
+      <p class="noscript">Enable JavaScript to use ParkPal’s map and account features.</p>
     </noscript>
   </body>
 </html>

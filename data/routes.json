@@ -1,0 +1,59 @@
+[
+  {
+    "id": "b6f16504-36d0-4d13-acec-4cd778b7af31",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-14T12:15:44.875Z",
+    "draft": {
+      "origin": {
+        "lat": -27.4931562,
+        "lng": 153.0058384
+      },
+      "originLabel": "Your location",
+      "stops": [
+        {
+          "lat": -27.492349756976182,
+          "lng": 153.00584077835086,
+          "id": "community:e9b54048-e12b-4f12-8c0a-56ea60087582",
+          "name": "Riverside Bathroom"
+        },
+        {
+          "lat": -27.489142813984053,
+          "lng": 152.99425363540652,
+          "name": "Map stop 2"
+        },
+        {
+          "lat": -27.484721537489172,
+          "lng": 152.99496173858645,
+          "name": "Map stop 3"
+        },
+        {
+          "lat": -27.481958149544912,
+          "lng": 152.98528432846072,
+          "name": "Map stop 4"
+        }
+      ],
+      "roundTrip": true
+    }
+  },
+  {
+    "id": "9eaf8773-91a8-4b22-be14-0968e4657cdc",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-14T12:18:31.270Z",
+    "draft": {
+      "origin": {
+        "lat": -27.4931562,
+        "lng": 153.0058384
+      },
+      "originLabel": "Your location",
+      "stops": [
+        {
+          "lat": -27.48540954,
+          "lng": 152.9931967,
+          "id": "toilet:4510",
+          "name": "Toowong Railway Station"
+        }
+      ],
+      "roundTrip": false
+    }
+  }
+]

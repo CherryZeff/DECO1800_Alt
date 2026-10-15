@@ -28,5 +28,35 @@
     "createdAt": "2026-10-13T07:34:10.004Z",
     "resolvedAt": "2026-10-13T07:34:18.643Z",
     "resolvedBy": "Elver Gon"
+  },
+  {
+    "id": "eb8d9b6c-8c65-4dab-8fc8-96376d995c33",
+    "facilityId": "community:e9b54048-e12b-4f12-8c0a-56ea60087582",
+    "facilityName": "Riverside Bathroom",
+    "facilityType": "toilet",
+    "lat": -27.492349756976182,
+    "lng": 153.00584077835086,
+    "category": "Unavailable",
+    "description": "Poop on the floor",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-14T12:16:47.870Z",
+    "resolvedAt": "2026-10-14T12:16:51.746Z",
+    "resolvedBy": "Elver Gon"
+  },
+  {
+    "id": "0beb5228-a950-419d-8846-ee1d017c9f83",
+    "facilityId": "water:1831",
+    "facilityName": "GUYATT PARK",
+    "facilityType": "water",
+    "lat": -27.493372034181156,
+    "lng": 153.00073447034316,
+    "category": "Missing",
+    "description": "Not here",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-14T12:17:26.319Z",
+    "resolvedAt": null,
+    "resolvedBy": null
   }
 ]

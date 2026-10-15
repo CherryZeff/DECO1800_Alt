@@ -1,5 +1,5 @@
-// Accounts, reports and submissions are shared JSON records on the Node server.
-// Only the guest's radius and the separate route draft remain in browser storage.
+// Account records and personal collections live on the Node server.
+// Guest preferences, appearance and the current route draft use browser storage.
 import { pageURL } from './helpers.js';
 import { apiRequest } from './api.js';
 
@@ -38,7 +38,9 @@ export async function signOut() {
 }
 
 export async function savePreferences(preferences) {
-  currentAccount = (await apiRequest('preferences', 'PUT', preferences)).user;
+  if (currentAccount)
+    currentAccount = (await apiRequest('preferences', 'PUT', preferences)).user;
+  else localStorage.setItem('parkpal.preferences', JSON.stringify(preferences));
 }
 
 export function getRadius() {
@@ -82,4 +84,28 @@ export async function addReport(facility, category, description) {
 
 export async function resolveReport(id) {
   await apiRequest(`reports/${encodeURIComponent(id)}/resolve`, 'POST', {});
+}
+
+export function getPreferences() {
+  if (currentAccount) return currentAccount.preferences;
+  try {
+    return JSON.parse(localStorage.getItem('parkpal.preferences') || '{}');
+  } catch {
+    return {};
+  }
+}
+export async function updateAccount(input) {
+  currentAccount = (await apiRequest('account', 'PUT', input)).user;
+}
+export async function getFavourites() {
+  return (await apiRequest('favourites')).favourites;
+}
+export async function setFavourite(facilityId, saved) {
+  await apiRequest('favourites', saved ? 'POST' : 'DELETE', { facilityId });
+}
+export async function markVisited(facilityId) {
+  await apiRequest('visits', 'POST', { facilityId });
+}
+export async function getPastRoutes() {
+  return (await apiRequest('routes')).routes;
 }

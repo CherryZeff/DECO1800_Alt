@@ -25,7 +25,7 @@ body {
     16px/1.55 system-ui,
     -apple-system,
     BlinkMacSystemFont,
-    "Segoe UI",
+    'Segoe UI',
     sans-serif;
 }
 h1,
@@ -243,8 +243,7 @@ summary:focus-visible {
   inset: auto 0 0;
   z-index: 1200;
   height: var(--nav-height);
-  padding: 5px max(12px, calc((100% - 680px) / 2))
-    calc(5px + env(safe-area-inset-bottom));
+  padding: 5px max(12px, calc((100% - 680px) / 2)) calc(5px + env(safe-area-inset-bottom));
   display: flex;
   align-items: stretch;
   justify-content: space-around;
@@ -411,7 +410,7 @@ summary:focus-visible {
   display: flex;
   flex-direction: column;
 }
-.bottom-sheet[data-state="expanded"] {
+.bottom-sheet[data-state='expanded'] {
   height: min(76%, 680px);
 }
 .sheet-toggle {
@@ -890,7 +889,7 @@ summary {
   padding: 0 0 26px 22px;
 }
 .timeline-item::before {
-  content: "";
+  content: '';
   position: absolute;
   left: -6px;
   top: 9px;
@@ -1135,7 +1134,7 @@ textarea {
     border-radius: 20px 20px 0 0;
     padding: 0 16px 10px;
   }
-  .bottom-sheet[data-state="expanded"] {
+  .bottom-sheet[data-state='expanded'] {
     height: 76%;
   }
   .sheet-title {
@@ -1355,4 +1354,210 @@ textarea {
     width: 54px;
     height: 54px;
   }
+}
+
+/* Search is a submitted place lookup, separate from the facility-list filter. */
+.place-search {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  width: min(620px, 62%);
+  color: var(--ink);
+  z-index: 1500;
+}
+.place-search input {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  background: var(--paper);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.place-search > button {
+  background: var(--orange);
+  border: 0;
+  border-radius: 8px;
+  padding: 0 14px;
+  color: #171c18;
+  font-weight: 700;
+}
+.place-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 100%;
+  min-width: 280px;
+  max-height: min(65vh, 500px);
+  overflow-y: auto;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+#place-options button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+}
+.nearest-mode .place-search {
+  visibility: hidden;
+}
+.menu-list {
+  display: grid;
+  gap: 16px;
+}
+.menu-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 20px;
+  border-radius: 12px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.menu-card strong {
+  font-size: 22px;
+}
+.section-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.section-tabs a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 650;
+  text-decoration: none;
+}
+.section-tabs a[aria-current='page'] {
+  background: var(--orange);
+  color: #171c18;
+}
+#profile-form {
+  margin-top: 24px;
+}
+#activity-auth {
+  margin-bottom: 16px;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ink: #f1f4ee;
+  --muted: #b7c3b7;
+  --paper: #171d1a;
+  --soft: #242d27;
+  --line: #48564a;
+  --orange-dark: #ff9a70;
+  --water: #8dd4bd;
+  --shadow: 0 10px 35px #0006;
+}
+[data-theme='dark'] .topbar {
+  background: #101512;
+}
+[data-theme='dark'] .bottom-nav a.active {
+  background: #3d291e;
+}
+[data-theme='dark'] .facility-card,
+[data-theme='dark'] input,
+[data-theme='dark'] select,
+[data-theme='dark'] textarea {
+  background: var(--paper);
+}
+[data-theme='dark'] .notice,
+[data-theme='dark'] .noscript {
+  background: #3b311d;
+  color: #ffe6b3;
+}
+[data-theme='dark'] .toast {
+  background: #edf2e9;
+  color: #171d1a;
+}
+[data-theme='dark'] .filter-button.active,
+[data-theme='dark'] .stop-marker,
+[data-theme='dark'] .facility-cluster {
+  background: #233126;
+  color: #f1f4ee;
+}
+[data-theme='dark'] .leaflet-control-zoom a,
+[data-theme='dark'] .leaflet-control-attribution {
+  background: #171d1a;
+  color: #f1f4ee;
+}
+[data-theme='dark'] .leaflet-tile-pane {
+  filter: brightness(0.75);
+}
+@media (max-width: 650px) {
+  .index-page {
+    --header-height: 122px;
+  }
+  .index-page .topbar {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 8px;
+    padding: 8px 14px;
+  }
+  .index-page .brand {
+    font-size: 23px;
+  }
+  .index-page .brand img {
+    width: 30px;
+    height: 30px;
+  }
+  .place-search {
+    width: 100%;
+  }
+  .place-search input {
+    font-size: 16px;
+  }
+}
+
+#profile-form label {
+  display: block;
+  margin-top: 16px;
+  font-weight: 650;
+}
+#profile-form input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+.toilet-circle,
+.avatar {
+  color: #171c18;
+}
+[data-theme='dark'] .filter.active {
+  background: #f1f4ee;
+  color: #171d1a;
+}
+[data-theme='dark'] .facility-cluster span,
+[data-theme='dark'] .marker-inner.community,
+[data-theme='dark'] .route-stats,
+[data-theme='dark'] .pick-banner {
+  background: #233126;
+  color: #f1f4ee;
+}
+[data-theme='dark'] .search-field {
+  background: var(--paper);
+}
+[data-theme='dark'] .facility-symbol.water {
+  background: #234439;
+}
+[data-theme='dark'] .form-error {
+  color: #ff9d8d;
 }

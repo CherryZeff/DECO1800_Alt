@@ -9,7 +9,16 @@ import {
   handleForm,
   pageURL,
 } from './helpers.js';
-import { getReports, requireAccount, addReport, resolveReport } from './storage.js';
+import {
+  getReports,
+  requireAccount,
+  addReport,
+  resolveReport,
+  getAccount,
+  getFavourites,
+  setFavourite,
+  markVisited,
+} from './storage.js';
 import { reportsHTML } from './reports.js';
 import { addRouteStop, readRoute, saveRoute } from './route-state.js';
 import { photoURL } from './photos.js';
@@ -17,6 +26,7 @@ import { photoURL } from './photos.js';
 export function setupFacilityDetails(onReportsChanged, onAddStop) {
   let selectedFacility;
   let reportRequest = 0;
+  let favouriteRequest = 0;
   const returnPage = location.pathname.endsWith('routes.html') ? 'routes.html' : 'index.html';
 
   async function renderReports() {
@@ -62,6 +72,8 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
         <button id="detail-add-stop" class="primary">${icon('plus')}Add to route</button>
         <button id="detail-directions" class="secondary">${icon('route')}Route here</button>
       </div>
+      <div class="button-row"><button id="detail-favourite" class="secondary" aria-pressed="false">☆ Favourite</button><button id="detail-visited" class="secondary">Mark as visited</button></div>
+      <p id="detail-personal-status" role="status" class="fine-print"></p>
       <button id="detail-report" class="text-button">Report a problem ↗</button>
       <section class="detail-activity">
         <h3>Facility reports</h3>
@@ -69,6 +81,59 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
         <div id="detail-timeline" class="timeline"></div>
       </section>`;
     renderReports();
+    const current = ++favouriteRequest;
+    let saved = false;
+    const favouriteButton = find('#detail-favourite');
+    const showFavourite = () => {
+      favouriteButton.textContent = saved ? '★ Favourited' : '☆ Favourite';
+      favouriteButton.setAttribute('aria-pressed', String(saved));
+    };
+    if (getAccount()) {
+      favouriteButton.disabled = true;
+      getFavourites()
+        .then((rows) => {
+          if (current !== favouriteRequest) return;
+          saved = rows.some((row) => row.facility.id === facility.id);
+          showFavourite();
+        })
+        .catch((error) => {
+          if (current === favouriteRequest)
+            find('#detail-personal-status').textContent = error.message;
+        })
+        .finally(() => {
+          if (current === favouriteRequest) favouriteButton.disabled = false;
+        });
+    }
+    favouriteButton.onclick = async () => {
+      if (!requireAccount(returnPage)) return;
+      favouriteButton.disabled = true;
+      try {
+        await setFavourite(facility.id, !saved);
+        saved = !saved;
+        showFavourite();
+        notify(saved ? 'Added to favourites.' : 'Removed from favourites.');
+      } catch (error) {
+        notify(error.message);
+      } finally {
+        favouriteButton.disabled = false;
+      }
+    };
+    find('#detail-visited').onclick = async (event) => {
+      if (!requireAccount(returnPage)) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await markVisited(facility.id);
+        if (current === favouriteRequest)
+          find('#detail-personal-status').textContent =
+            'Visit recorded. Reports for this facility appear in your activity.';
+        notify('Visit recorded.');
+      } catch (error) {
+        notify(error.message);
+      } finally {
+        button.disabled = false;
+      }
+    };
 
     find('#detail-add-stop').onclick = () => {
       try {

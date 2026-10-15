@@ -1,6 +1,12 @@
 // ParkPal's shared storage: serve the pages, write JSON, and store facility photos.
 import http from 'node:http';
-import { readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  mkdirSync,
+  unlinkSync,
+} from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
@@ -33,7 +39,14 @@ const datasets = {
 };
 mkdirSync(dataDir, { recursive: true });
 mkdirSync(photosDir, { recursive: true });
-for (const name of ['accounts', 'submissions', 'reports']) {
+for (const name of [
+  'accounts',
+  'submissions',
+  'reports',
+  'routes',
+  'favourites',
+  'visits',
+]) {
   try {
     readFileSync(join(dataDir, `${name}.json`));
   } catch (error) {
@@ -41,13 +54,42 @@ for (const name of ['accounts', 'submissions', 'reports']) {
     writeFileSync(join(dataDir, `${name}.json`), '[]\n', { mode: 0o600 });
   }
 }
+migrateSavedRoutes(dataDir);
+
+export function serializeRoutes(rows) {
+  // Save the chosen points, not the routing service's calculated path or directions.
+  const plans = rows.map((row) => ({
+    id: row.id,
+    userId: row.userId,
+    createdAt: row.createdAt,
+    draft: row.draft,
+  }));
+  return JSON.stringify(plans, null, 2) + '\n';
+}
+
+export function migrateSavedRoutes(directory) {
+  const file = join(directory, 'routes.json');
+  const original = readFileSync(file, 'utf8');
+  const compact = serializeRoutes(JSON.parse(original));
+  if (original === compact) return null;
+
+  // Preserve the exact original before the first rewrite; later starts do nothing.
+  const backup = join(directory, `routes.backup-${randomUUID()}.json`);
+  writeFileSync(backup, original, { mode: 0o600, flag: 'wx' });
+  writeFileSync(`${file}.tmp`, compact, { mode: 0o600 });
+  renameSync(`${file}.tmp`, file);
+  return backup;
+}
+
 function read(name) {
   return JSON.parse(readFileSync(join(dataDir, `${name}.json`), 'utf8'));
 }
 // Synchronous read-modify-write sections cannot interleave in this single process.
 function save(name, rows) {
   const file = join(dataDir, `${name}.json`);
-  writeFileSync(`${file}.tmp`, JSON.stringify(rows, null, 2) + '\n', {
+  const contents =
+    name === 'routes' ? serializeRoutes(rows) : JSON.stringify(rows, null, 2) + '\n';
+  writeFileSync(`${file}.tmp`, contents, {
     mode: 0o600,
   });
   renameSync(`${file}.tmp`, file);
@@ -130,7 +172,8 @@ async function body(req, limit = 16384) {
   }
   try {
     const value = JSON.parse(raw || '{}');
-    if (!value || Array.isArray(value) || typeof value !== 'object') fail('Invalid request.');
+    if (!value || Array.isArray(value) || typeof value !== 'object')
+      fail('Invalid request.');
     return value;
   } catch {
     fail('Send a valid JSON object.');
@@ -142,7 +185,9 @@ function preparePhotos(photos = []) {
   if (!Array.isArray(photos) || photos.length > 3) fail('Add at most 3 photos.');
   return photos.map((photo) => {
     if (typeof photo !== 'string') fail('Invalid photo.');
-    const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(photo);
+    const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(
+      photo,
+    );
     if (!match) fail('Photos must be JPEG, PNG or WebP images.');
     const buffer = Buffer.from(match[2], 'base64');
     if (!buffer.length || buffer.length > 2 * 1024 * 1024)
@@ -206,7 +251,9 @@ export function normalize(row, type) {
     lng: point.lon,
     amenities,
     address:
-      type === 'toilet' ? [row.address1, row.town].filter(Boolean).join(', ') : row.park_name,
+      type === 'toilet'
+        ? [row.address1, row.town].filter(Boolean).join(', ')
+        : row.park_name,
     hours:
       type === 'toilet'
         ? row.openinghours || 'Opening hours not provided'
@@ -234,13 +281,18 @@ async function external(url) {
     response = await fetch(url, {
       signal: AbortSignal.timeout(20000),
       headers: {
-        'User-Agent': 'RunStop/1.0 (Brisbane running facilities prototype)',
+        'User-Agent':
+          'ParkPal/1.0 (Brisbane running facilities; interactive place search)',
       },
     });
   } catch {
-    fail('Could not connect to the external data service. Please try again shortly.', 502);
+    fail(
+      'Could not connect to the external data service. Please try again shortly.',
+      502,
+    );
   }
-  if (!response.ok) fail('The external data service is unavailable. Please try again.', 502);
+  if (!response.ok)
+    fail('The external data service is unavailable. Please try again.', 502);
   return response.json();
 }
 async function councilNearby(type, center, radius) {
@@ -260,7 +312,8 @@ async function councilNearby(type, center, radius) {
     url.searchParams.set('limit', '100');
     url.searchParams.set('offset', String(offset));
     const result = await external(url);
-    if (!Array.isArray(result.results)) fail('Council returned an unexpected response.', 502);
+    if (!Array.isArray(result.results))
+      fail('Council returned an unexpected response.', 502);
     for (const row of result.results) {
       const facility = normalize(row, type);
       if (facility) {
@@ -268,7 +321,8 @@ async function councilNearby(type, center, radius) {
         knownFacilities.set(facility.id, facility);
       }
     }
-    if (offset + result.results.length >= result.total_count || !result.results.length) break;
+    if (offset + result.results.length >= result.total_count || !result.results.length)
+      break;
   }
   if (cache.size > 100) cache.delete(cache.keys().next().value);
   cache.set(key, { rows, expires: Date.now() + 300000 });
@@ -295,6 +349,94 @@ async function findFacility(id) {
   knownFacilities.set(id, facility);
   return facility;
 }
+const searchCache = new Map();
+let searchQueue = Promise.resolve();
+let lastSearch = 0;
+async function searchPlaces(query) {
+  const key = query.toLowerCase();
+  const cached = searchCache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.places;
+  const task = searchQueue.then(async () => {
+    const existing = searchCache.get(key);
+    if (existing && existing.expires > Date.now()) return existing.places;
+    await new Promise((done) =>
+      setTimeout(done, Math.max(0, 1100 - (Date.now() - lastSearch))),
+    );
+    lastSearch = Date.now();
+    const url = new URL(
+      process.env.GEOCODER_URL || 'https://nominatim.openstreetmap.org/search',
+    );
+    url.search = new URLSearchParams({
+      q: query,
+      format: 'jsonv2',
+      limit: '6',
+      countrycodes: 'au',
+      viewbox: '152.6,-26.9,153.6,-28.2',
+      bounded: '1',
+      'accept-language': 'en',
+    });
+    const rows = await external(url);
+    if (!Array.isArray(rows))
+      fail('Place search returned an unexpected response.', 502);
+    const places = rows
+      .map((row) => ({
+        name: clean(row.display_name, 300),
+        lat: Number(row.lat),
+        lng: Number(row.lon),
+      }))
+      .filter(
+        (row) =>
+          Number.isFinite(row.lat) &&
+          Number.isFinite(row.lng) &&
+          Math.abs(row.lat) <= 90 &&
+          Math.abs(row.lng) <= 180,
+      );
+    if (searchCache.size >= 100) searchCache.delete(searchCache.keys().next().value);
+    searchCache.set(key, { places, expires: Date.now() + 86400000 });
+    return places;
+  });
+  searchQueue = task.catch(() => {});
+  return task;
+}
+
+// Never display a ferry/transit/driving segment, or a route with missing mode data.
+export function isWalkingOnly(route) {
+  return (
+    route?.geometry?.type === 'LineString' &&
+    Array.isArray(route.geometry.coordinates) &&
+    route.geometry.coordinates.length >= 2 &&
+    route.geometry.coordinates.every(
+      (point) =>
+        Array.isArray(point) &&
+        point.length >= 2 &&
+        Number.isFinite(point[0]) &&
+        Number.isFinite(point[1]) &&
+        Math.abs(point[0]) <= 180 &&
+        Math.abs(point[1]) <= 90,
+    ) &&
+    Number.isFinite(route.distance) &&
+    route.distance >= 0 &&
+    Number.isFinite(route.duration) &&
+    route.duration >= 0 &&
+    Array.isArray(route.legs) &&
+    route.legs.length > 0 &&
+    route.legs.every(
+      (leg) =>
+        Array.isArray(leg.steps) &&
+        leg.steps.length > 0 &&
+        leg.steps.every(
+          (step) =>
+            step.mode === 'walking' &&
+            !step.intersections?.some((intersection) =>
+              intersection.classes?.some((value) =>
+                ['ferry', 'motorway', 'restricted', 'tunnel_shuttle'].includes(value),
+              ),
+            ),
+        ),
+    )
+  );
+}
+
 let routeQueue = Promise.resolve();
 let lastRoute = 0;
 function walkingRoute(points) {
@@ -306,11 +448,22 @@ function walkingRoute(points) {
     lastRoute = Date.now();
     const coordinates = points.map((point) => `${point.lng},${point.lat}`).join(';');
     const result = await external(
-      `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${coordinates}?overview=full&geometries=geojson&steps=true&radiuses=${points.map(() => '150').join(';')}`,
+      `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${coordinates}?overview=full&geometries=geojson&steps=true&alternatives=true&radiuses=${points.map(() => '150').join(';')}`,
     );
     if (result.code !== 'Ok' || !result.routes?.length)
-      fail('No walking route found. Move the stop closer to a path and try again.', 422);
-    return { ...result.routes[0], waypoints: result.waypoints };
+      fail(
+        'No walking route found. Move the stop closer to a path and try again.',
+        422,
+      );
+    const walking = result.routes.find(
+      (route) => route.legs?.length === points.length - 1 && isWalkingOnly(route),
+    );
+    if (!walking)
+      fail(
+        'No walking-only route found. Routes containing ferries, vehicles or unverified travel modes have been excluded. Try different stops.',
+        422,
+      );
+    return { ...walking, waypoints: result.waypoints };
   });
   routeQueue = task.catch(() => {});
   return task;
@@ -331,12 +484,14 @@ async function api(req, res, url) {
   }
   if (['/api/register', '/api/login'].includes(path) && req.method === 'POST') {
     const ip = req.socket.remoteAddress;
-    for (const [key, record] of attempts) if (record.until < Date.now()) attempts.delete(key);
+    for (const [key, record] of attempts)
+      if (record.until < Date.now()) attempts.delete(key);
     const attempt = attempts.get(ip) || {
       count: 0,
       until: Date.now() + 900000,
     };
-    if (++attempt.count > 30) fail('Too many sign-in attempts. Try again in 15 minutes.', 429);
+    if (++attempt.count > 30)
+      fail('Too many sign-in attempts. Try again in 15 minutes.', 429);
     attempts.set(ip, attempt);
     const input = await body(req),
       email = clean(input.email, 254).toLowerCase();
@@ -369,7 +524,11 @@ async function api(req, res, url) {
       accounts.push(account);
       save('accounts', accounts);
     } else {
-      const hash = await hashPassword(input.password, account?.salt || 'unknown-account', 64);
+      const hash = await hashPassword(
+        input.password,
+        account?.salt || 'unknown-account',
+        64,
+      );
       if (!account || !timingSafeEqual(hash, Buffer.from(account.hash, 'hex')))
         fail('Email or password is incorrect.', 401);
     }
@@ -379,8 +538,127 @@ async function api(req, res, url) {
   if (path === '/api/logout' && req.method === 'POST') {
     const token = (req.headers.cookie || '').match(/(?:^|; )runstop=([a-f0-9]+)/)?.[1];
     sessions.delete(token);
-    res.setHeader('Set-Cookie', 'runstop=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+    res.setHeader(
+      'Set-Cookie',
+      'runstop=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
+    );
     return json(res, 200, { ok: true });
+  }
+  // Profile changes require the current password and rotate sessions after credentials change.
+  if (path === '/api/account' && req.method === 'PUT') {
+    const user = requireUser(req),
+      input = await body(req);
+    if (typeof input.currentPassword !== 'string' || input.currentPassword.length > 128)
+      fail('Enter your current password.');
+    const verified = await hashPassword(input.currentPassword, user.salt, 64);
+    if (!timingSafeEqual(verified, Buffer.from(user.hash, 'hex')))
+      fail('Current password is incorrect.', 401);
+    const name = clean(input.name, 60),
+      email = clean(input.email, 254).toLowerCase();
+    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      fail('Enter a name and valid email.');
+    let credentials;
+    if (input.newPassword) {
+      if (
+        typeof input.newPassword !== 'string' ||
+        input.newPassword.length < 8 ||
+        input.newPassword.length > 128
+      )
+        fail('Use a new password between 8 and 128 characters.');
+      const salt = randomBytes(16).toString('hex');
+      credentials = {
+        salt,
+        hash: (await hashPassword(input.newPassword, salt, 64)).toString('hex'),
+      };
+    }
+    const accounts = read('accounts'),
+      account = accounts.find((row) => row.id === user.id);
+    if (!currentUser(req) || !account || account.hash !== user.hash)
+      fail('Sign in again before changing your account.', 401);
+    if (accounts.some((row) => row.id !== user.id && row.email === email))
+      fail('An account already uses this email.', 409);
+    const changedCredentials = credentials || account.email !== email;
+    Object.assign(account, { name, email }, credentials);
+    save('accounts', accounts);
+    if (changedCredentials) {
+      for (const [token, session] of sessions)
+        if (session.userId === user.id) sessions.delete(token);
+      sessionCookie(req, res, user.id);
+    }
+    return json(res, 200, { user: publicAccount(account) });
+  }
+  if (path === '/api/search' && req.method === 'GET') {
+    const query = clean(url.searchParams.get('q'), 120);
+    if (query.length < 2) fail('Enter at least two characters to search.');
+    return json(res, 200, { places: await searchPlaces(query) });
+  }
+  if (path === '/api/facility' && req.method === 'GET') {
+    const facility = await findFacility(clean(url.searchParams.get('id')));
+    const openReports = read('reports').filter(
+      (row) => row.facilityId === facility.id && !row.resolvedAt,
+    ).length;
+    return json(res, 200, { facility: { ...facility, openReports } });
+  }
+  // These collections are private to the signed-in account, never static JSON URLs.
+  if (['/api/favourites', '/api/visits'].includes(path)) {
+    const user = requireUser(req),
+      collection = path.split('/')[2];
+    if (req.method === 'GET')
+      return json(res, 200, {
+        [collection]: read(collection)
+          .filter((row) => row.userId === user.id)
+          .reverse(),
+      });
+    if (['POST', 'DELETE'].includes(req.method)) {
+      const input = await body(req),
+        facilityId = clean(input.facilityId);
+      if (req.method === 'DELETE') {
+        save(
+          collection,
+          read(collection).filter(
+            (row) => row.userId !== user.id || row.facility.id !== facilityId,
+          ),
+        );
+        return json(res, 200, { ok: true });
+      }
+      const facility = await findFacility(facilityId);
+      const rows = read(collection).filter(
+        (row) => row.userId !== user.id || row.facility.id !== facilityId,
+      );
+      rows.push({ userId: user.id, facility, createdAt: new Date().toISOString() });
+      save(collection, rows);
+      return json(res, 200, { ok: true });
+    }
+  }
+  if (path === '/api/my-activity' && req.method === 'GET') {
+    const user = requireUser(req),
+      source = url.searchParams.get('source') || 'all';
+    if (!['all', 'favourites', 'visits'].includes(source))
+      fail('Choose an activity filter.');
+    const favourites = read('favourites').filter((row) => row.userId === user.id);
+    const visits = read('visits')
+      .filter((row) => row.userId === user.id)
+      .slice(-20);
+    const places =
+      source === 'favourites'
+        ? favourites
+        : source === 'visits'
+          ? visits
+          : [...favourites, ...visits];
+    const ids = new Set(places.map((row) => row.facility.id));
+    const reports = read('reports')
+      .filter((row) => ids.has(row.facilityId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 10);
+    return json(res, 200, { reports });
+  }
+  if (path === '/api/routes' && req.method === 'GET') {
+    const user = requireUser(req);
+    return json(res, 200, {
+      routes: read('routes')
+        .filter((row) => row.userId === user.id)
+        .reverse(),
+    });
   }
   if (path === '/api/preferences' && req.method === 'PUT') {
     const user = requireUser(req),
@@ -411,7 +689,9 @@ async function api(req, res, url) {
       return [];
     });
     // Council requests finish first. Always read shared submissions fresh from disk after them.
-    facilities.push(...read('submissions').filter((row) => distance(center, row) <= radius));
+    facilities.push(
+      ...read('submissions').filter((row) => distance(center, row) <= radius),
+    );
     const reports = read('reports');
     return json(res, 200, {
       facilities: facilities.map((row) => ({
@@ -441,7 +721,11 @@ async function api(req, res, url) {
       name: clean(input.name),
       ...point,
       amenities: Array.isArray(input.amenities)
-        ? [...new Set(input.amenities.filter((value) => allowedAmenities.includes(value)))]
+        ? [
+            ...new Set(
+              input.amenities.filter((value) => allowedAmenities.includes(value)),
+            ),
+          ]
         : [],
       description: clean(input.description, 1000),
       address: clean(input.address),
@@ -526,11 +810,72 @@ async function api(req, res, url) {
   }
   if (path === '/api/route' && req.method === 'POST') {
     const input = await body(req);
-    if (!Array.isArray(input.points) || input.points.length < 2 || input.points.length > 12)
+    if (
+      !Array.isArray(input.points) ||
+      input.points.length < 2 ||
+      input.points.length > 12
+    )
       fail('Choose between 2 and 12 route points.');
-    return json(res, 200, {
-      route: await walkingRoute(input.points.map(position)),
-    });
+    const points = input.points.map(position);
+    const route = await walkingRoute(points);
+    const user = currentUser(req);
+    let savedRoute = null;
+    if (user) {
+      const roundTrip = input.roundTrip === true;
+      if (roundTrip && distance(points[0], points.at(-1)) > 1)
+        fail('A return route must finish at its start.');
+      const stopPoints = points.slice(1, roundTrip ? -1 : undefined);
+      if (!stopPoints.length || stopPoints.length > 10)
+        fail('Choose between 1 and 10 stops.');
+      const visited = [];
+      const stops = [];
+      for (const [index, point] of stopPoints.entries()) {
+        const id = clean(input.stops?.[index]?.id);
+        if (id) {
+          const facility = await findFacility(id);
+          if (distance(point, facility) > 30)
+            fail('A facility stop does not match its map position.');
+          visited.push(facility);
+          stops.push({ ...point, id: facility.id, name: facility.name });
+        } else
+          stops.push({
+            ...point,
+            name: clean(input.stops?.[index]?.name) || `Stop ${index + 1}`,
+          });
+      }
+      if (!currentUser(req)) fail('Sign in again to save this route.', 401);
+      savedRoute = {
+        id: randomUUID(),
+        userId: user.id,
+        createdAt: new Date().toISOString(),
+        draft: {
+          origin: points[0],
+          originLabel: clean(input.originLabel) || 'Saved start',
+          stops,
+          roundTrip,
+        },
+      };
+      const rows = read('routes');
+      rows.push(savedRoute);
+      save('routes', rows);
+      // A facility used as a route stop counts as a visit, as does the manual visit button.
+      const ids = new Set(visited.map((facility) => facility.id));
+      const visits = read('visits').filter(
+        (row) => row.userId !== user.id || !ids.has(row.facility.id),
+      );
+      for (const facility of new Map(
+        visited.map((facility) => [facility.id, facility]),
+      ).values()) {
+        visits.push({
+          userId: user.id,
+          facility,
+          createdAt: savedRoute.createdAt,
+          source: 'route',
+        });
+      }
+      save('visits', visits);
+    }
+    return json(res, 200, { route, savedRouteId: savedRoute?.id || null });
   }
   fail('Not found.', 404);
 }
@@ -541,6 +886,13 @@ const mime = {
   '.svg': 'image/svg+xml',
 };
 const publicFiles = [
+  'history.html',
+  'favourites.html',
+  'more.html',
+  'settings.html',
+  'js/settings.js',
+  'js/more.js',
+  'js/theme.js',
   'routes.html',
   'accounts.html',
   'activity.html',
@@ -562,7 +914,9 @@ const publicFiles = [
   'js/migration.js',
   'js/photos.js',
 ];
-const staticFiles = new Map(publicFiles.map((file) => [`/public/${file}`, `public/${file}`]));
+const staticFiles = new Map(
+  publicFiles.map((file) => [`/public/${file}`, `public/${file}`]),
+);
 staticFiles.set('/', 'index.html');
 staticFiles.set('/index.html', 'index.html');
 export const server = http.createServer(async (req, res) => {

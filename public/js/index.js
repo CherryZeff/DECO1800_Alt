@@ -13,7 +13,15 @@ import {
   amenityNames,
   pageURL,
 } from './helpers.js';
-import { getAccount, requireAccount, addFacility, loadAccount, getRadius } from './storage.js';
+import {
+  getAccount,
+  requireAccount,
+  addFacility,
+  loadAccount,
+  getRadius,
+  getPreferences,
+} from './storage.js';
+import { apiRequest } from './api.js';
 import { getFacilities } from './services.js';
 import { FacilityMap } from './map.js';
 import { setupFacilityDetails } from './facility-details.js';
@@ -54,7 +62,7 @@ async function refreshReports() {
 }
 
 function matchesPreferences(facility) {
-  const preferences = getAccount()?.preferences || {};
+  const preferences = getPreferences();
   if (preferences.hideIssues && facility.openReports) return false;
   const keys =
     facility.type === 'toilet' ? ['accessible', 'unisex', 'babychange'] : ['bottle'];
@@ -389,6 +397,52 @@ find('#facility-list').onclick = (event) => {
   if (facility) details.open(facility);
 };
 
+// Search only on submit, not every keystroke. Choosing a result reloads that area.
+let placeResults = [];
+find('#place-search').onsubmit = async (event) => {
+  event.preventDefault();
+  const button = find('#place-search [type=submit]');
+  if (button.disabled) return;
+  button.disabled = true;
+  find('#place-results').hidden = false;
+  find('#place-options').replaceChildren();
+  find('#place-status').textContent = 'Searching Brisbane places…';
+  try {
+    placeResults = (
+      await apiRequest(`search?q=${encodeURIComponent(find('#place-query').value.trim())}`)
+    ).places;
+    find('#place-status').textContent = placeResults.length
+      ? 'Choose a place to explore nearby facilities.'
+      : 'No places found in the Brisbane region. Try a suburb or park name.';
+    find('#place-options').innerHTML = placeResults
+      .map(
+        (place, index) =>
+          `<button type="button" data-place="${index}">${escapeHTML(place.name)}</button>`,
+      )
+      .join('');
+  } catch (error) {
+    find('#place-status').textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+find('#place-options').onclick = (event) => {
+  const button = event.target.closest('[data-place]');
+  if (!button) return;
+  const place = placeResults[Number(button.dataset.place)];
+  nearestRequest++; // An outstanding GPS request must not overwrite the chosen place.
+  sessionStorage.setItem('parkpal.locationAsked', 'yes');
+  updateCenter({ lat: place.lat, lng: place.lng }, place.name.split(',')[0]);
+  find('#place-results').hidden = true;
+  loadFacilities();
+};
+find('#close-search').onclick = () => {
+  find('#place-results').hidden = true;
+};
+find('#place-search').onkeydown = (event) => {
+  if (event.key === 'Escape') find('#place-results').hidden = true;
+};
+
 async function start() {
   await loadAccount();
   state.radius = getRadius();
@@ -410,6 +464,15 @@ async function start() {
   }
   await loadFacilities();
   if (hasMapLink) facilityMap.focus({ lat, lng });
+  if (query.has('facility')) {
+    const facility = (
+      await apiRequest(`facility?id=${encodeURIComponent(query.get('facility'))}`)
+    ).facility;
+    if (!state.facilities.some((row) => row.id === facility.id))
+      facilityMap.addFacility(facility);
+    facilityMap.focus(facility);
+    details.open(facility);
+  }
   if (query.has('add')) showAddForm();
   // Ask only on the first visit in a tab. Keep a denied location as a labelled preview.
   if (!hasMapLink && !sessionStorage.getItem('parkpal.locationAsked')) {

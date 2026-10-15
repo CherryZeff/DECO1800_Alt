@@ -1,16 +1,22 @@
 PARKPAL — CURRENT FEATURE REPORT
-Updated: 13 October 2026
+Updated: 14 October 2026
 Maintenance: update this file whenever features or storage behaviour change.
 
 PURPOSE AND STRUCTURE
 ParkPal helps runners locate public toilets and drinking water around Brisbane.
 Plain HTML, CSS and JavaScript; Leaflet maps; no frontend build step.
-Root index.html is the entry point. Separate Routes, Activity and Accounts pages
-live under public/. A shared bottom navigation links the pages and includes a
+Root index.html is the entry point. Routes, More, Account and Settings pages
+live under public/. Activity links to Past routes, Favourites and Facility activity
+as three separate pages. A shared bottom navigation links the pages and includes a
 circular orange toilet-icon shortcut. Black, orange and white responsive styling,
 a running-person logo, readable text and large controls support phone and desktop.
 
 HOME MAP
+- Top search bar finds Brisbane-region suburbs and place names on submission.
+- Selecting a result reloads nearby facilities using the saved radius.
+- Nominatim-compatible search is bounded to the Brisbane region, queued at least
+  1.1 seconds apart, cached for 24 hours (up to 100 queries) and attributed to OSM.
+- No search-on-keystroke/autocomplete. GEOCODER_URL can switch providers.
 - Requests GPS location, with a clearly labelled Brisbane preview if unavailable.
 - Queries Brisbane City Council public-toilets-in-brisbane and
   park-drinking-fountain-tap-locations datasets within the selected radius.
@@ -42,23 +48,41 @@ ROUTES
 - Start from GPS or a manually chosen map location.
 - Add up to ten facilities or manually placed stops, reorder or remove them,
   clear the route, and optionally return to the start.
-- Request walking routes from the OSRM/FOSSGIS foot service.
+- Request walking-route alternatives from the OSRM/FOSSGIS foot service.
+- Only return a route if every step explicitly uses walking mode. Reject ferry,
+  driving, train and unknown modes, plus reported motorway/restricted classes.
+- If no returned alternative passes, show an error; do not display or save it.
+- This does not guarantee that a ferry-free alternative will be found or that
+  all OSM access tags are complete. Legal roadside footpaths/crossings are allowed.
+- Routes created while signed in save privately to routes.json, including their
+  original start, ordered stops, return-to-start setting and creation time. Guest routes do not.
+- Past routes shows saved dates and stops. Reuse route restores the original start
+  and ordered points to the map, without substituting the current GPS location.
+  Reuse alone does not fetch directions, save another plan or record visits.
+  Edit the points or tap Create walking route to calculate a new walking path;
+  successful creation saves a new plan and marks facility stops visited as usual.
+  Paths may change with map data; these plans are not recorded completed runs.
 - Draw the returned route line on Leaflet; display distance, estimated walking
   time and turn instructions, plus an offset-pin warning when applicable.
 - Route errors are displayed without substituting an invented path.
 - Route draft persists within the current browser tab across page navigation.
 - Route planning only: no live navigation, run recording or background tracking.
 
-ACCOUNTS AND PREFERENCES
+MORE, ACCOUNTS AND SETTINGS
+- More offers Account, Settings and Log out (when signed in).
 - Register, sign in and sign out through the Node backend.
+- Edit account name, email and password after providing the current password.
+  Email uniqueness is checked. Email/password changes invalidate other sessions.
+- Settings includes a persistent browser-local light/dark mode on all pages.
 - Passwords use salted scrypt hashes. Session cookies are HttpOnly and SameSite.
 - Sessions last up to seven days but end on server restart.
 - Guests can explore and plan routes; contributing and resolving require login.
 - Toilet options: wheelchair access, unisex facilities and baby changing.
 - Water option: bottle filling. Optional hiding of facilities with open reports.
-- Account-page radius slider: 1–10 km in 1 km steps, default 5 km.
+- Settings radius slider: 1–10 km in 1 km steps, default 5 km.
 - Saved account radius applies to facility searches and closest-toilet selection.
-- Guest radius remains browser-local; account radius is stored in accounts.json.
+- Guest radius and facility preferences remain browser-local; account preferences
+  are stored in accounts.json.
 - No email verification, password recovery or account administration interface.
 
 FACILITY SUBMISSIONS AND PHOTOS
@@ -81,7 +105,12 @@ PROBLEM REPORTS AND ACTIVITY
 - Report creation writes reports.json before the UI confirms success.
 - Facility markers/list indicate unresolved problems.
 - Facility timeline shows ten latest reports plus older unresolved problems.
-- Activity page shows ten latest shared reports and includes refresh.
+- Favourite/unfavourite a facility from its details and browse Favourite places.
+- Mark as visited explicitly; successfully created route stops also count.
+- Personal Facility activity shows the latest ten reports for favourites and/or
+  the 20 most recently visited facilities, with filters and refresh.
+- Favourites, visits and past routes are account-private. Opening details alone
+  does not mark a visit. A route-stop visit is not proof of physical arrival.
 - Signed-in users can mark problems resolved. Resolution details persist in JSON.
 
 SHARED FILES AND RECOVERY
@@ -89,6 +118,17 @@ SHARED FILES AND RECOVERY
 - data/submissions.json: submitted facilities and photo references.
 - data/reports.json: problems and resolution information.
 - data/photos/: uploaded photos, publicly readable through /photos/ URLs.
+- data/routes.json: account-owned created route plans and their coordinates.
+  Uses readable indented JSON with only route ID, user ID, date and draft:
+  start coordinates/label, ordered stop coordinates/names/facility IDs and the
+  return-to-start setting. No calculated geometry, directions, distance or duration.
+  Startup converts older route files if needed, first preserving the exact
+  original as routes.backup-<id>.json in the same directory. Converted files
+  are unchanged on later starts. Migration backups are private, ignored by Git,
+  and not loaded by the app; archive/remove them manually after checking the plans.
+- data/favourites.json: account-owned saved facility references/snapshots.
+- data/visits.json: account-owned latest visit per facility (manual or route stop).
+- New collections are initialized only when absent; existing data is preserved.
 - Node serves an allowlist of app assets; private JSON is not exposed as static
   files. Existing project data is preserved. Tests use temporary storage.
 - Optional account-page import recovers earlier browser-local submissions and
@@ -104,5 +144,5 @@ UQ Zone needs a Node process, persistent writable data storage and an appropriat
 web proxy/port configuration. Phone GPS requires HTTPS (localhost is an exception).
 External map/council/routing services need internet access and may fail or limit
 requests. Community facilities are unverified. JSON storage supports one Node
-process; there is no multi-process database, moderation, edit/delete interface,
-offline map, password reset, automatic backup or deployment automation.
+process; there is no multi-process database, moderation, facility edit/delete interface,
+offline map, password reset, scheduled backup or deployment automation.

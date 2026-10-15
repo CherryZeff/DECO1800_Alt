@@ -11,10 +11,15 @@ export function getFacilities(center, radius) {
   return apiRequest(`facilities?${query}`);
 }
 
-export async function getWalkingRoute(points) {
+export async function getWalkingRoute(points, draft = {}) {
   const coordinates = points.map((point) => ({
     lat: point.lat,
     lng: point.lng,
   }));
-  return (await apiRequest('route', 'POST', { points: coordinates })).route;
+  return await apiRequest('route', 'POST', {
+    points: coordinates,
+    stops: draft.stops?.map((stop) => ({ id: stop.id, name: stop.name })),
+    originLabel: draft.originLabel,
+    roundTrip: draft.roundTrip,
+  });
 }

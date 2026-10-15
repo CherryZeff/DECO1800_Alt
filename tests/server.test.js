@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,6 +8,8 @@ const directory = mkdtempSync(join(tmpdir(), 'runstop-test-'));
 process.env.DATA_DIR = directory;
 const originalFetch = globalThis.fetch;
 const externalCalls = [];
+let routingModes = ['walking'];
+let geocoderCalls = 0;
 globalThis.fetch = async (input, options) => {
   const url = new URL(input);
   if (url.hostname === 'data.brisbane.qld.gov.au') {
@@ -39,30 +41,74 @@ globalThis.fetch = async (input, options) => {
           ];
     return Response.json({ total_count: water ? 1 : 101, results: result });
   }
+  if (url.hostname === 'nominatim.openstreetmap.org') {
+    geocoderCalls++;
+    assert.equal(url.searchParams.get('countrycodes'), 'au');
+    assert.equal(url.searchParams.get('bounded'), '1');
+    return Response.json([
+      { display_name: 'West End, Brisbane, Queensland', lat: '-27.48', lon: '153.01' },
+    ]);
+  }
   if (url.hostname === 'routing.openstreetmap.de') {
     assert.ok(url.pathname.startsWith('/routed-foot/route/v1/foot/'));
+    assert.equal(url.searchParams.get('alternatives'), 'true');
+    const pointCount = url.pathname.split('/').at(-1).split(';').length;
     return Response.json({
       code: 'Ok',
-      routes: [
-        {
-          distance: 800,
-          duration: 600,
-          geometry: {
-            type: 'LineString',
-            coordinates: [
-              [153.025, -27.47],
-              [153.026, -27.471],
-            ],
-          },
-          legs: [],
+      routes: routingModes.map((mode) => ({
+        distance: 800,
+        duration: 600,
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [153.025, -27.47],
+            [153.026, -27.471],
+          ],
         },
+        legs: Array.from({ length: pointCount - 1 }, () => ({
+          steps: [
+            {
+              mode,
+              distance: 800,
+              name: 'Footpath',
+              maneuver: {
+                type: 'depart',
+                bearing_after: 90,
+                location: [153.025, -27.47],
+              },
+              geometry: {
+                type: 'LineString',
+                coordinates: [
+                  [153.025, -27.47],
+                  [153.026, -27.471],
+                ],
+              },
+              intersections: [
+                {
+                  location: [153.025, -27.47],
+                  bearings: [90, 180],
+                  entry: [true, true],
+                },
+              ],
+            },
+          ],
+        })),
+      })),
+      waypoints: [
+        { distance: 40, location: [153.025, -27.47], hint: 'unused-provider-hint' },
       ],
-      waypoints: [],
     });
   }
   return originalFetch(input, options);
 };
-const { server, normalize, distance } = await import('../server.js');
+const {
+  server,
+  normalize,
+  distance,
+  isWalkingOnly,
+  serializeRoutes,
+  migrateSavedRoutes,
+} = await import('../server.js');
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
 const base = `http://127.0.0.1:${server.address().port}`;
 let cookie, facilityId, reportId;
@@ -84,6 +130,108 @@ after(async () => {
   rmSync(directory, { recursive: true, force: true });
 });
 
+test('route migration keeps original points and ownership, backs up originals, and is repeatable', () => {
+  const migrationDir = mkdtempSync(join(tmpdir(), 'parkpal-route-migration-'));
+  try {
+    const coordinates = Array.from({ length: 300 }, (_, index) => [
+      153 + index / 100000,
+      -27.47,
+    ]);
+    const step = {
+      distance: 800,
+      duration: 600,
+      name: 'Footpath',
+      mode: 'walking',
+      maneuver: {
+        type: 'turn',
+        modifier: 'left',
+        location: coordinates[0],
+        bearing_before: 90,
+      },
+      geometry: { type: 'LineString', coordinates },
+      intersections: coordinates.map((location) => ({
+        location,
+        bearings: [90, 180],
+        entry: [true, true],
+      })),
+    };
+    const record = {
+      id: 'saved-route',
+      userId: 'owner',
+      createdAt: '2026-10-14T00:00:00.000Z',
+      name: 'Morning run',
+      draft: {
+        origin: { lat: -27.47, lng: 153 },
+        originLabel: 'Original start',
+        stops: [
+          { lat: -27.47, lng: 153.001, name: 'Point 1' },
+          { lat: -27.47, lng: 153.003, name: 'Toilet', id: 'toilet:1' },
+        ],
+        roundTrip: false,
+      },
+      route: {
+        geometry: { type: 'LineString', coordinates },
+        distance: 800,
+        duration: 600,
+        weight: 650,
+        legs: [{ steps: [step], summary: 'Footpath', distance: 800, duration: 600 }],
+        waypoints: [{ distance: 40, hint: 'provider-only', location: coordinates[0] }],
+      },
+    };
+    const records = [
+      record,
+      {
+        ...record,
+        id: 'another-route',
+        userId: 'another-owner',
+        draft: { ...record.draft, roundTrip: true },
+        route: {
+          geometry: record.route.geometry,
+          legs: [
+            {
+              steps: [
+                {
+                  distance: 800,
+                  name: 'Footpath',
+                  mode: 'walking',
+                  maneuver: { type: 'depart' },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ];
+    const original = JSON.stringify(records, null, 2) + '\n';
+    const file = join(migrationDir, 'routes.json');
+    writeFileSync(file, original);
+    const backup = migrateSavedRoutes(migrationDir);
+    assert.equal(readFileSync(backup, 'utf8'), original);
+    const contents = readFileSync(file, 'utf8');
+    const saved = JSON.parse(contents);
+    assert.ok(Buffer.byteLength(contents) < Buffer.byteLength(original) / 4);
+    for (const [index, row] of saved.entries()) {
+      const originalRecord = records[index];
+      assert.deepEqual(row, {
+        id: originalRecord.id,
+        userId: originalRecord.userId,
+        createdAt: originalRecord.createdAt,
+        draft: originalRecord.draft,
+      });
+      assert.equal(row.route, undefined);
+    }
+    assert.equal(serializeRoutes(saved), contents);
+    assert.equal(migrateSavedRoutes(migrationDir), null);
+    assert.equal(readdirSync(migrationDir).length, 2);
+    // A malformed file must never be overwritten by the migration.
+    writeFileSync(file, '{unfinished');
+    assert.throws(() => migrateSavedRoutes(migrationDir));
+    assert.equal(readFileSync(file, 'utf8'), '{unfinished');
+  } finally {
+    rmSync(migrationDir, { recursive: true, force: true });
+  }
+});
+
 test('serves the root entry point and its public assets', async () => {
   for (const path of ['/', '/index.html']) {
     const response = await originalFetch(`${base}${path}`);
@@ -93,6 +241,11 @@ test('serves the root entry point and its public assets', async () => {
   for (const path of [
     '/public/routes.html',
     '/public/accounts.html',
+    '/public/more.html',
+    '/public/settings.html',
+    '/public/history.html',
+    '/public/favourites.html',
+    '/public/js/theme.js',
     '/public/style.css',
     '/public/js/helpers.js',
     '/public/icons.svg',
@@ -123,7 +276,9 @@ test('guest can explore, queries are radius-filtered, and all council pages are 
   );
   assert.equal(response.status, 200);
   assert.equal(result.facilities.length, 102);
-  assert.ok(externalCalls.every((url) => url.searchParams.get('where').includes('5000m')));
+  assert.ok(
+    externalCalls.every((url) => url.searchParams.get('where').includes('5000m')),
+  );
   assert.ok(externalCalls.some((url) => url.searchParams.get('offset') === '100'));
   assert.equal((await request('/api/facilities?lat=no&lng=153')).response.status, 400);
   assert.equal(
@@ -132,9 +287,17 @@ test('guest can explore, queries are radius-filtered, and all council pages are 
   );
 });
 test('private files and guest mutations are blocked', async () => {
-  for (const path of ['/data/accounts.json', '/server.js', '/%2e%2e/data/accounts.json'])
+  for (const path of [
+    '/data/accounts.json',
+    '/server.js',
+    '/%2e%2e/data/accounts.json',
+  ])
     assert.equal((await request(path)).response.status, 404);
-  for (const path of ['/api/submissions', '/api/reports', '/api/reports/unknown/resolve'])
+  for (const path of [
+    '/api/submissions',
+    '/api/reports',
+    '/api/reports/unknown/resolve',
+  ])
     assert.equal((await request(path, 'POST', {})).response.status, 401);
 });
 test('accounts persist hashed passwords; session response contains no credentials', async () => {
@@ -230,7 +393,9 @@ test('reports can be created, inspected and resolved idempotently', async () => 
   );
   assert.equal(created.response.status, 201);
   reportId = created.result.report.id;
-  const before = await request(`/api/reports?facility=${encodeURIComponent(facilityId)}`);
+  const before = await request(
+    `/api/reports?facility=${encodeURIComponent(facilityId)}`,
+  );
   assert.equal(before.result.unresolved.length, 1);
   const resolved = await request(`/api/reports/${reportId}/resolve`, 'POST', {}, true);
   assert.ok(resolved.result.report.resolvedAt);
@@ -261,8 +426,9 @@ test('timeline returns ten latest reports and retains older unresolved problems'
       { facilityId, category: 'Dirty', description: `Problem ${i}` },
       true,
     );
-  const result = (await request(`/api/reports?facility=${encodeURIComponent(facilityId)}`))
-    .result;
+  const result = (
+    await request(`/api/reports?facility=${encodeURIComponent(facilityId)}`)
+  ).result;
   assert.equal(result.reports.length, 10);
   assert.equal(result.unresolved.length, 12);
   assert.equal(result.reports[0].description, 'Problem 11');
@@ -278,7 +444,8 @@ test('guests can request foot routes, with bounded and validated coordinates', a
   assert.equal(route.response.status, 200);
   assert.equal(route.result.route.distance, 800);
   assert.equal(
-    (await request('/api/route', 'POST', { points: [{ lat: 0, lng: 0 }] })).response.status,
+    (await request('/api/route', 'POST', { points: [{ lat: 0, lng: 0 }] })).response
+      .status,
     400,
   );
   assert.equal(
@@ -340,10 +507,13 @@ test('radius defaults to 5 km and persists valid slider values', async () => {
     );
   }
   assert.equal(
-    (await request('/api/facilities?lat=-27.47&lng=153.025&radius=7000')).response.status,
+    (await request('/api/facilities?lat=-27.47&lng=153.025&radius=7000')).response
+      .status,
     200,
   );
-  assert.ok(externalCalls.some((url) => url.searchParams.get('where').includes('7000m')));
+  assert.ok(
+    externalCalls.some((url) => url.searchParams.get('where').includes('7000m')),
+  );
 });
 
 test('photo submissions persist files, reload after council records, and reject invalid uploads', async () => {
@@ -360,16 +530,20 @@ test('photo submissions persist files, reload after council records, and reject 
   assert.equal(created.response.status, 201);
   const photo = created.result.facility.photos[0];
   assert.match(photo, /^[a-f0-9-]{36}\.png$/);
-  assert.deepEqual(readFileSync(join(directory, 'photos', photo)), Buffer.from(png, 'base64'));
+  assert.deepEqual(
+    readFileSync(join(directory, 'photos', photo)),
+    Buffer.from(png, 'base64'),
+  );
   const image = await originalFetch(`${base}/photos/${photo}`);
   assert.equal(image.headers.get('content-type'), 'image/png');
   assert.deepEqual(Buffer.from(await image.arrayBuffer()), Buffer.from(png, 'base64'));
   for (let visit = 0; visit < 2; visit++) {
-    const nearby = (await request('/api/facilities?lat=-27.47&lng=153.025&radius=5000')).result
-      .facilities;
-    assert.deepEqual(nearby.find((row) => row.id === created.result.facility.id).photos, [
-      photo,
-    ]);
+    const nearby = (await request('/api/facilities?lat=-27.47&lng=153.025&radius=5000'))
+      .result.facilities;
+    assert.deepEqual(
+      nearby.find((row) => row.id === created.result.facility.id).photos,
+      [photo],
+    );
     assert.equal(nearby.at(-1).id, created.result.facility.id);
     assert.equal(nearby[0].source, 'Brisbane City Council');
   }
@@ -380,7 +554,8 @@ test('photo submissions persist files, reload after council records, and reject 
     ['data:image/svg+xml;base64,PHN2Zz4='],
   ]) {
     assert.equal(
-      (await request('/api/submissions', 'POST', { ...input, photos }, true)).response.status,
+      (await request('/api/submissions', 'POST', { ...input, photos }, true)).response
+        .status,
       400,
     );
   }
@@ -427,8 +602,219 @@ test('browser contribution import is idempotent and reports persist on disk', as
   );
   assert.equal(saved.resolvedAt, resolved.result.report.resolvedAt);
   assert.equal(
-    (await request(`/api/reports?facility=${encodeURIComponent(report.facilityId)}`)).result
-      .reports[0].resolvedAt,
+    (await request(`/api/reports?facility=${encodeURIComponent(report.facilityId)}`))
+      .result.reports[0].resolvedAt,
     saved.resolvedAt,
   );
+});
+
+test('submitted place searches are bounded, validated and cached', async () => {
+  assert.equal((await request('/api/search?q=w')).response.status, 400);
+  const found = await request('/api/search?q=West%20End');
+  assert.equal(found.response.status, 200);
+  assert.equal(found.result.places[0].lat, -27.48);
+  assert.equal(found.result.places[0].name, 'West End, Brisbane, Queensland');
+  await request('/api/search?q=west%20end');
+  assert.equal(geocoderCalls, 1);
+});
+
+test('route checks reject non-walking or unverifiable modes and accept a walking alternative', async () => {
+  const input = {
+    points: [
+      { lat: -27.47, lng: 153.025 },
+      { lat: -27.471, lng: 153.026 },
+    ],
+  };
+  for (const mode of ['ferry', 'driving', 'train', undefined]) {
+    routingModes = [mode];
+    const result = await request('/api/route', 'POST', input, true);
+    assert.equal(result.response.status, 422);
+    assert.equal(JSON.parse(readFileSync(join(directory, 'routes.json'))).length, 0);
+  }
+  routingModes = ['ferry', 'walking'];
+  const result = await request('/api/route', 'POST', input);
+  assert.equal(result.response.status, 200);
+  assert.equal(result.result.route.legs[0].steps[0].mode, 'walking');
+  const malformed = structuredClone(result.result.route);
+  malformed.legs = [];
+  assert.equal(isWalkingOnly(malformed), false);
+  const motorway = structuredClone(result.result.route);
+  motorway.legs[0].steps[0].intersections = [{ classes: ['motorway'] }];
+  assert.equal(isWalkingOnly(motorway), false);
+  routingModes = ['walking'];
+});
+
+test('favourites, manual visits and personalised reports are private and persist', async () => {
+  for (const endpoint of ['favourites', 'visits', 'routes', 'my-activity']) {
+    assert.equal((await request(`/api/${endpoint}`)).response.status, 401);
+    assert.equal((await request(`/data/${endpoint}.json`)).response.status, 404);
+  }
+  assert.equal(
+    (await request('/api/favourites', 'POST', { facilityId })).response.status,
+    401,
+  );
+  for (let repeat = 0; repeat < 2; repeat++)
+    assert.equal(
+      (await request('/api/favourites', 'POST', { facilityId }, true)).response.status,
+      200,
+    );
+  assert.equal(
+    (await request('/api/favourites', 'GET', undefined, true)).result.favourites.length,
+    1,
+  );
+  assert.equal(JSON.parse(readFileSync(join(directory, 'favourites.json'))).length, 1);
+  const favouriteReports = await request(
+    '/api/my-activity?source=favourites',
+    'GET',
+    undefined,
+    true,
+  );
+  assert.equal(favouriteReports.result.reports.length, 10);
+  assert.ok(
+    favouriteReports.result.reports.every((row) => row.facilityId === facilityId),
+  );
+  await request('/api/visits', 'POST', { facilityId }, true);
+  assert.equal(
+    (await request('/api/visits', 'GET', undefined, true)).result.visits.length,
+    1,
+  );
+  await request('/api/favourites', 'DELETE', { facilityId }, true);
+  assert.equal(
+    (await request('/api/my-activity?source=favourites', 'GET', undefined, true)).result
+      .reports.length,
+    0,
+  );
+  assert.equal(
+    (await request('/api/my-activity?source=visits', 'GET', undefined, true)).result
+      .reports.length,
+    10,
+  );
+});
+
+test('created routes save for their owner and facility stops count as visits', async () => {
+  const input = {
+    points: [
+      { lat: -27.47, lng: 153.025 },
+      { lat: -27.4701, lng: 153.025 },
+    ],
+    stops: [{ id: facilityId, name: 'Test water' }],
+    originLabel: 'My start',
+    name: 'Morning run',
+    roundTrip: false,
+  };
+  const result = await request('/api/route', 'POST', input, true);
+  assert.equal(result.response.status, 200);
+  const saved = JSON.parse(readFileSync(join(directory, 'routes.json')));
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].id, result.result.savedRouteId);
+  assert.equal(saved[0].draft.stops[0].id, facilityId);
+  assert.deepEqual(Object.keys(saved[0]), ['id', 'userId', 'createdAt', 'draft']);
+  assert.deepEqual(saved[0].draft.origin, input.points[0]);
+  assert.deepEqual(
+    saved[0].draft.stops.map(({ lat, lng }) => ({ lat, lng })),
+    input.points.slice(1),
+  );
+  assert.equal(saved[0].draft.roundTrip, false);
+  // The calculated path still goes to the live map, but never into route storage.
+  assert.equal(result.result.route.geometry.type, 'LineString');
+  assert.deepEqual(
+    (await request('/api/routes', 'GET', undefined, true)).result.routes[0],
+    saved[0],
+  );
+  const visits = JSON.parse(readFileSync(join(directory, 'visits.json')));
+  assert.equal(visits.length, 1);
+  assert.equal(visits[0].source, 'route');
+  await request('/api/route', 'POST', input);
+  assert.equal(JSON.parse(readFileSync(join(directory, 'routes.json'))).length, 1);
+  const ownerCookie = cookie;
+  const second = await request('/api/register', 'POST', {
+    name: 'Another runner',
+    email: 'another@example.com',
+    password: 'another-test-password',
+  });
+  cookie = second.response.headers.get('set-cookie').split(';')[0];
+  for (const endpoint of ['routes', 'favourites', 'visits'])
+    assert.equal(
+      (await request(`/api/${endpoint}`, 'GET', undefined, true)).result[endpoint]
+        .length,
+      0,
+    );
+  assert.equal(
+    (await request('/api/my-activity', 'GET', undefined, true)).result.reports.length,
+    0,
+  );
+  cookie = ownerCookie;
+});
+
+test('account editing verifies password, enforces email uniqueness and rotates sessions', async () => {
+  const input = {
+    name: 'Updated Runner',
+    email: 'updated@example.com',
+    currentPassword: 'test-password-123',
+    newPassword: 'changed-password-123',
+  };
+  assert.equal((await request('/api/account', 'PUT', input)).response.status, 401);
+  assert.equal(
+    (
+      await request(
+        '/api/account',
+        'PUT',
+        { ...input, currentPassword: 'incorrect' },
+        true,
+      )
+    ).response.status,
+    401,
+  );
+  assert.equal(
+    (
+      await request(
+        '/api/account',
+        'PUT',
+        { ...input, email: 'ANOTHER@example.com' },
+        true,
+      )
+    ).response.status,
+    409,
+  );
+  assert.equal(
+    (await request('/api/account', 'PUT', { ...input, newPassword: 'short' }, true))
+      .response.status,
+    400,
+  );
+  const oldCookie = cookie;
+  const updated = await request('/api/account', 'PUT', input, true);
+  assert.equal(updated.response.status, 200);
+  assert.equal(updated.result.user.name, input.name);
+  assert.equal(updated.result.user.preferences.radius, 7000);
+  assert.equal(updated.result.user.hash, undefined);
+  assert.equal((await request('/api/me', 'GET', undefined, true)).result.user, null);
+  cookie = updated.response.headers.get('set-cookie').split(';')[0];
+  assert.notEqual(cookie, oldCookie);
+  assert.equal(
+    (await request('/api/routes', 'GET', undefined, true)).result.routes.length,
+    1,
+  );
+  assert.equal(
+    (
+      await request('/api/login', 'POST', {
+        email: input.email,
+        password: input.currentPassword,
+      })
+    ).response.status,
+    401,
+  );
+  assert.equal(
+    (
+      await request('/api/login', 'POST', {
+        email: input.email,
+        password: input.newPassword,
+      })
+    ).response.status,
+    200,
+  );
+  const saved = JSON.parse(readFileSync(join(directory, 'accounts.json'))).find(
+    (row) => row.email === input.email,
+  );
+  assert.equal(saved.name, input.name);
+  assert.equal(saved.password, undefined);
 });

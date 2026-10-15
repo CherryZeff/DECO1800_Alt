@@ -2,10 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1c211e" />
     <meta
       name="description"
@@ -16,6 +13,7 @@
 
     <link rel="stylesheet" href="./style.css" />
     <script type="module" src="./js/accounts.js"></script>
+    <script src="./js/theme.js"></script>
   </head>
   <body class="accounts-page">
     <!-- The same simple header and navigation appear on every page. -->
@@ -29,47 +27,18 @@
     </header>
     <main class="content-page">
       <section id="account-panel" class="panel">
-        <div class="eyebrow">YOUR RUN. YOUR WAY.</div>
+        <a class="text-button" href="./more.html">← More</a>
+        <div class="eyebrow">YOUR ACCOUNT</div>
         <h1>
           Make it
           <br />
           <span>personal.</span>
         </h1>
-        <section
-          id="radius-settings"
-          class="radius-settings"
-          aria-labelledby="radius-heading"
-        >
-          <h2 id="radius-heading">Map radius</h2>
-          <p>Choose how far around your location ParkPal loads facilities.</p>
-          <form id="radius-form">
-            <label for="account-radius"
-              >Search within
-              <output id="radius-value" for="account-radius"
-                >5 km</output
-              ></label
-            >
-            <input
-              id="account-radius"
-              name="radius"
-              type="range"
-              min="1"
-              max="10"
-              step="1"
-              value="5"
-            />
-            <div class="range-labels"><span>1 km</span><span>10 km</span></div>
-            <p id="radius-storage-note" class="fine-print"></p>
-            <p class="form-error" role="alert"></p>
-            <button type="submit" class="secondary full">
-              Save map radius
-            </button>
-          </form>
-        </section>
+
         <div id="guest-account">
           <p class="intro">
-            Create an account to add facilities, report problems, and save your
-            preferences. You can explore and plan routes without signing in.
+            Create an account to add facilities, report problems, and save your preferences.
+            You can explore and plan routes without signing in.
           </p>
           <button id="open-signin" class="primary full">
             Sign in or create an account
@@ -83,63 +52,58 @@
               <strong id="profile-name"></strong>
               <small id="profile-email"></small>
             </div>
-            <button id="logout" class="text-button">Sign out</button>
           </div>
-          <div
-            id="preferences"
-            class="account-tabs"
-            role="tablist"
-            aria-label="Account settings"
-          >
-            <button id="preferences-tab" role="tab" aria-selected="true">
-              Preferences
-            </button>
-          </div>
-          <form id="preferences-form" aria-label="Preferences">
-            <p class="intro compact">
-              Apply these preferences to nearby facilities and the
-              nearest-toilet shortcut.
-            </p>
-            <h2>Toilet preferences</h2>
-            <label class="check-row">
-              <input name="accessible" type="checkbox" />
-              <span>Wheelchair accessible</span>
-            </label>
-            <label class="check-row">
-              <input name="unisex" type="checkbox" />
-              <span>Unisex facilities</span>
-            </label>
-            <label class="check-row">
-              <input name="babychange" type="checkbox" />
-              <span>Baby change facilities</span>
-            </label>
-            <h2 class="spaced-heading">Drinking water preferences</h2>
-            <label class="check-row">
-              <input name="bottle" type="checkbox" />
-              <span>Bottle filling confirmed</span>
-            </label>
+
+          <form id="profile-form">
+            <h2>Edit account</h2>
+            <label
+              >Name<input name="name" autocomplete="name" maxlength="60" required
+            /></label>
+            <label
+              >Email<input
+                name="email"
+                type="email"
+                autocomplete="email"
+                maxlength="254"
+                required
+            /></label>
+            <label
+              >Current password<input
+                name="currentPassword"
+                type="password"
+                autocomplete="current-password"
+                required
+                maxlength="128"
+            /></label>
+            <label
+              >New password (optional)<input
+                name="newPassword"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                maxlength="128"
+            /></label>
+            <label
+              >Confirm new password<input
+                name="confirmPassword"
+                type="password"
+                autocomplete="new-password"
+                maxlength="128"
+            /></label>
             <p class="fine-print">
-              Council fountain records don’t confirm bottle filling. This filter
-              shows community facilities with that amenity.
+              Leave the new password empty to keep it. Changing your email or password signs
+              out your other sessions.
             </p>
-            <h2 class="spaced-heading">Facility condition</h2>
-            <label class="check-row">
-              <input name="hideIssues" type="checkbox" />
-              <span>Hide facilities with unresolved reports</span>
-            </label>
             <p class="form-error" role="alert"></p>
-            <button class="primary full" type="submit">
-              Save preferences
-              <svg class="icon"><use href="./icons.svg#i-check" /></svg>
-            </button>
+            <button type="submit" class="primary full">Save account</button>
           </form>
         </div>
         <section id="browser-import" class="community-card" hidden>
           <h2>Recover earlier contributions</h2>
           <p>
-            Import this browser’s old pins and reports for the email you signed
-            in with. Existing files and browser records are kept. Imported
-            records use your current account.
+            Import this browser’s old pins and reports for the email you signed in with.
+            Existing files and browser records are kept. Imported records use your current
+            account.
           </p>
           <button id="import-browser" class="secondary full">
             Import browser contributions
@@ -154,10 +118,9 @@
         <div class="privacy-note">
           <svg class="icon"><use href="./icons.svg#i-info" /></svg>
           <p>
-            Accounts, contributions, reports and photos are saved on the ParkPal
-            server. Your running start is kept in this tab, not in your account.
-            Photos and contributed facility details are visible to other
-            runners.
+            Accounts, contributions, reports and photos are saved on the ParkPal server.
+            Created routes, favourites and visits are private to your account. Photos and
+            contributed facility details are visible to other runners.
           </p>
         </div>
       </section>
@@ -189,11 +152,11 @@
         </svg>
         <span>Activity</span>
       </a>
-      <a href="./accounts.html" class="active" aria-current="page">
+      <a href="./more.html" class="active" aria-current="page">
         <svg class="icon" aria-hidden="true">
           <use href="./icons.svg#i-user"></use>
         </svg>
-        <span>Account</span>
+        <span>More</span>
       </a>
     </nav>
     <dialog id="auth-dialog" class="modal">
@@ -210,13 +173,7 @@
         </label>
         <label>
           Email
-          <input
-            name="email"
-            type="email"
-            autocomplete="email"
-            required
-            maxlength="254"
-          />
+          <input name="email" type="email" autocomplete="email" required maxlength="254" />
         </label>
         <label>
           Password
@@ -230,9 +187,7 @@
           />
         </label>
         <p class="form-error" role="alert"></p>
-        <button id="auth-submit" class="primary full" type="submit">
-          Sign in
-        </button>
+        <button id="auth-submit" class="primary full" type="submit">Sign in</button>
       </form>
       <button id="toggle-auth" class="text-button auth-toggle">
         New here? Create an account
@@ -240,9 +195,7 @@
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
     <noscript>
-      <p class="noscript">
-        Enable JavaScript to use ParkPal’s map and account features.
-      </p>
+      <p class="noscript">Enable JavaScript to use ParkPal’s map and account features.</p>
     </noscript>
   </body>
 </html>

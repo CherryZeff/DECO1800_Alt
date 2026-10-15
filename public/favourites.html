@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1c211e" />
+    <meta
+      name="description"
+      content="ParkPal helps Brisbane runners find water, toilets and their next route."
+    />
+    <title>Favourite places · ParkPal</title>
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./js/activity.js"></script>
+    <script src="./js/theme.js"></script>
+  </head>
+  <body class="favourites-page">
+    <!-- The same simple header and navigation appear on every page. -->
+    <header class="topbar">
+      <a href="../index.html" class="brand">
+        <img src="./icon.svg" alt="" width="40" height="40" />
+        ParkPal
+        <span>.</span>
+      </a>
+      <span class="header-tagline">Your next stop, sorted.</span>
+    </header>
+    <main class="content-page">
+      <section class="panel">
+        <nav class="section-tabs" aria-label="Your activity">
+          <a href="./history.html">Past routes</a><a href="./favourites.html">Favourites</a
+          ><a href="./activity.html">Facility activity</a>
+        </nav>
+        <h1>Favourite places</h1>
+        <p id="activity-auth" role="status"></p>
+        <div id="personal-content" hidden>
+          <p class="intro">Your saved facilities, ready for your next run.</p>
+          <div id="favourites-list" class="menu-list"></div>
+        </div>
+      </section>
+    </main>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <a href="../index.html">
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-pin"></use>
+        </svg>
+        <span>Explore</span>
+      </a>
+      <a href="./routes.html">
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-route"></use>
+        </svg>
+        <span>Routes</span> </a
+      ><a
+        href="../index.html?toilets=1"
+        class="toilet-shortcut"
+        aria-label="Find the three closest toilets"
+        ><span class="toilet-circle"
+          ><svg class="icon" aria-hidden="true">
+            <use href="./icons.svg#i-wc"></use></svg></span
+        ><span>Toilets</span></a
+      >
+      <a href="./activity.html" class="active" aria-current="page">
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-activity"></use>
+        </svg>
+        <span>Activity</span>
+      </a>
+      <a href="./more.html">
+        <svg class="icon" aria-hidden="true">
+          <use href="./icons.svg#i-user"></use>
+        </svg>
+        <span>More</span>
+      </a>
+    </nav>
+
+    <div id="toast" class="toast" role="status" hidden></div>
+    <noscript>
+      <p class="noscript">Enable JavaScript to use ParkPal’s map and account features.</p>
+    </noscript>
+  </body>
+</html>

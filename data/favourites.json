@@ -1,0 +1,20 @@
+[
+  {
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "facility": {
+      "id": "water:1831",
+      "type": "water",
+      "name": "GUYATT PARK",
+      "lat": -27.493372034181156,
+      "lng": 153.00073447034316,
+      "amenities": [],
+      "address": "GUYATT PARK",
+      "hours": "Opening hours not provided",
+      "description": "BUBBLER & TAP",
+      "restrictions": [],
+      "source": "Brisbane City Council",
+      "createdAt": null
+    },
+    "createdAt": "2026-10-14T12:17:16.230Z"
+  }
+]

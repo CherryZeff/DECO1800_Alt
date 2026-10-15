@@ -1,5 +1,6 @@
 PARKPAL: INITIALIZE A UQCLOUD ZONE
-Checked online: 13 October 2026
+UQ setup checked online: 13 October 2026
+ParkPal feature/storage notes updated: 14 October 2026
 
 This is a deployment guide for this repository, not an installation script.
 Follow one section at a time. Commands are labelled by where to run them.
@@ -22,7 +23,7 @@ For a course/team allocation use its supplied hostnames instead.
 
 The deployment layout chosen for this app is:
   /var/www/nodejs/parkpal/   Application code, including root index.html
-  /var/lib/parkpal/         Live accounts.json, submissions.json, reports.json
+  /var/lib/parkpal/         Live JSON: accounts, submissions, reports, routes, favourites, visits
   /var/lib/parkpal/photos/  Live uploaded photos
 
 Your phone -> https://YOUR_WEB_HOST -> nginx -> ParkPal on 127.0.0.1:8081
@@ -124,7 +125,7 @@ Expected top-level files: index.html, server.js, package.json, public/.
 package.json must be included because the JavaScript uses ES modules.
 
 
-4. SET UP PERSISTENT ACCOUNTS, SUBMISSIONS, REPORTS AND PHOTOS
+4. SET UP PERSISTENT APP DATA AND PHOTOS
 
 ON THE ZONE:
   sudo mkdir -p /var/lib/parkpal/photos
@@ -155,8 +156,8 @@ B. Bring your existing local JSON accounts, submissions, reports and photos:
      sudo chown -R www-data:www-data /var/lib/parkpal
 
    This copy is for initial migration, not routine deployments: copying old JSON
-   onto a live site would overwrite newer contributions. Keep accounts, reports,
-   submissions and photos together. Remove the temporary seed copy after you
+   onto a live site would overwrite newer contributions. Keep all six JSON files
+   and the photos directory together. Remove the temporary seed copy after you
    have verified the migration and retained a private backup.
 
 In this deployment DATA_DIR=/var/lib/parkpal, so that directory becomes the
@@ -294,14 +295,17 @@ a private/incognito window to confirm the intended public or UQ-only access.
 
 In a browser at https://YOUR_WEB_HOST/:
   1. Open home, Routes, Activity and Accounts; confirm CSS and icons load.
-  2. Create a test account and sign in. Save a 7 km radius and reload Accounts.
+  2. Create a test account and sign in. In More > Settings save a 7 km radius
+     and reload Settings. Check dark mode and More > Account profile editing.
   3. Return to the map; check council facilities and the new radius.
   4. Submit an identifiable test facility with a photo at a sensible location.
   5. Leave the map and return; confirm the submission and photo still appear.
-  6. Report an issue on that test facility; confirm Activity shows it.
+  6. Favourite or mark that facility visited, then report an issue; confirm
+     Activity > Facility activity shows it.
   7. Mark it resolved; reload and confirm the resolution persists.
   8. On a phone, allow location and use the circular toilet button. Select one
      of the nearest choices, create its route, and check the back controls.
+     Check Activity > Past routes and Favourites, and test top-bar place search.
   9. Test guest access in another browser; shared facilities should still load.
 
 These actions create real records on this installation. Use meaningful test
@@ -337,8 +341,16 @@ Node is stopped to avoid serving a mix of old/new files. Then restart nodejs.
 Do not re-copy seed data or reset JSON. /var/lib/parkpal stays independent of
 code replacement. Recheck login, uploads and route rendering after deployment.
 
+The server migrates routes.json on startup if needed, retaining route/user IDs,
+dates, original start and ordered stops, and the return-to-start setting. Calculated
+paths/directions are no longer stored. Reuse loads points into the planner; the
+runner requests a fresh walking route when ready.
+Before converting an existing file, it saves routes.backup-<id>.json in DATA_DIR.
+This private migration backup is not loaded by the app but still uses disk space;
+archive or remove it only after checking saved routes. Keep regular backups too.
+
 If restoring data, first stop Node and back up the current directory. Restore
-all three JSON files AND photos from the same backup, reapply www-data ownership,
+all six JSON files AND photos from the same backup, reapply www-data ownership,
 and restart. Do not merge account IDs or facility IDs by hand.
 
 
@@ -383,7 +395,8 @@ Sign-in works locally but not on the phone:
 
 Map tiles/council/route failures:
   Check browser network errors and Node logs. The Zone needs outbound HTTPS to
-  data.brisbane.qld.gov.au and routing.openstreetmap.de. Browsers need access to
+  data.brisbane.qld.gov.au, routing.openstreetmap.de and
+  nominatim.openstreetmap.org (or the configured GEOCODER_URL endpoint). Browsers need access to
   unpkg.com and tile.openstreetmap.org. These services may also rate-limit or fail.
 
 SSH times out:
