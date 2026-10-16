@@ -8,7 +8,10 @@ export class FacilityMap {
       document.querySelector('#map-error').hidden = false;
       return;
     }
-    this.map = L.map('map', { zoomControl: false }).setView([-27.4698, 153.0251], 14);
+    this.map = L.map('map', { zoomControl: false }).setView(
+      [-27.4698, 153.0251],
+      14,
+    );
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution:
@@ -113,7 +116,7 @@ export class FacilityMap {
       L.marker([stop.lat, stop.lng], {
         title: `Stop ${index + 1}: ${stop.name}`,
         icon: L.divIcon({
-          className: 'stop-marker',
+          className: `stop-marker${stop.id ? '' : ' manual-stop'}`,
           html: String(index + 1),
           iconSize: [30, 30],
           iconAnchor: [15, 15],

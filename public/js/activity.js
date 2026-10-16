@@ -5,9 +5,9 @@ import {
   getFavourites,
   setFavourite,
   getPastRoutes,
-  resolveReport,
 } from './storage.js';
 import { apiRequest } from './api.js';
+import { setupReportActions } from './report-actions.js';
 import { reportsHTML } from './reports.js';
 
 async function render() {
@@ -55,13 +55,12 @@ async function refresh() {
 if (find('#refresh-activity')) find('#refresh-activity').onclick = refresh;
 if (find('#activity-source')) find('#activity-source').onchange = refresh;
 find('#personal-content').onclick = async (event) => {
-  const button = event.target.closest('[data-unfavourite], [data-resolve]');
+  const button = event.target.closest('[data-unfavourite]');
   if (!button) return;
   button.disabled = true;
   try {
     if (button.dataset.unfavourite)
       await setFavourite(button.dataset.unfavourite, false);
-    else await resolveReport(button.dataset.resolve);
     await render();
   } catch (error) {
     notify(error.message);
@@ -69,6 +68,7 @@ find('#personal-content').onclick = async (event) => {
     button.disabled = false;
   }
 };
+setupReportActions(find('#personal-content'), render, 'activity.html');
 async function start() {
   document.querySelectorAll('.section-tabs a').forEach((link) => {
     if (new URL(link.href).pathname === location.pathname)

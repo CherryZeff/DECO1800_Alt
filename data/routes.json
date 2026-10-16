@@ -511,5 +511,73 @@
       ],
       "roundTrip": false
     }
+  },
+  {
+    "id": "7224dd6a-d56c-4ba9-bfd9-f5c8c1b0ba38",
+    "userId": "cbc8ec4a-fa77-427a-b536-d8ffc66f5e4f",
+    "createdAt": "2026-10-15T11:45:13.385Z",
+    "draft": {
+      "origin": {
+        "lat": -27.4931411,
+        "lng": 153.005802
+      },
+      "originLabel": "Your location",
+      "stops": [
+        {
+          "lat": -27.492349756976182,
+          "lng": 153.00584077835086,
+          "id": "community:e9b54048-e12b-4f12-8c0a-56ea60087582",
+          "name": "Riverside Bathroom"
+        }
+      ],
+      "roundTrip": false
+    }
+  },
+  {
+    "id": "1f85fb21-0274-403c-a8e0-220ce15cf129",
+    "userId": "cbc8ec4a-fa77-427a-b536-d8ffc66f5e4f",
+    "createdAt": "2026-10-15T11:46:59.650Z",
+    "draft": {
+      "origin": {
+        "lat": -27.4931816,
+        "lng": 153.0058437
+      },
+      "originLabel": "Your location",
+      "stops": [
+        {
+          "lat": -27.49355887,
+          "lng": 153.00128638,
+          "id": "toilet:16193",
+          "name": "Guyatt Park"
+        }
+      ],
+      "roundTrip": false
+    }
+  },
+  {
+    "id": "5ad88e8d-877e-4f41-8152-9f2974c82190",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-15T12:10:11.888Z",
+    "draft": {
+      "origin": {
+        "lat": -27.4931483,
+        "lng": 153.0058418
+      },
+      "originLabel": "Your location",
+      "stops": [
+        {
+          "lat": -27.49355887,
+          "lng": 153.00128638,
+          "id": "toilet:16193",
+          "name": "Guyatt Park"
+        },
+        {
+          "lat": -27.49411631419926,
+          "lng": 153.00388813018802,
+          "name": "Map stop 2"
+        }
+      ],
+      "roundTrip": false
+    }
   }
 ]

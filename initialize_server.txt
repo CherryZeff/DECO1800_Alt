@@ -110,7 +110,7 @@ permissions are special; use ownership changes for this app rather than chmod.
 Open a SECOND terminal on your LOCAL COMPUTER. Leave the Zone terminal open.
 From your local project directory:
   cd /home/jay/Documents/DECO1800_2
-  scp -J YOUR_UQ_USERNAME@moss.labs.eait.uq.edu.au -r index.html server.js package.json public YOUR_UQ_USERNAME@YOUR_ZONE_HOST:/var/www/nodejs/parkpal/
+  scp -J YOUR_UQ_USERNAME@moss.labs.eait.uq.edu.au -r index.html server.js package.json public lib scripts YOUR_UQ_USERNAME@YOUR_ZONE_HOST:/var/www/nodejs/parkpal/
 
 This deliberately uploads code separately from live data. Do not upload .git,
 node_modules or private data into /var/www/htdocs. The root index.html belongs
@@ -121,7 +121,7 @@ ON THE ZONE, verify:
   ls /var/www/nodejs/parkpal/public/js
   node --check /var/www/nodejs/parkpal/server.js
 
-Expected top-level files: index.html, server.js, package.json, public/.
+Expected top-level files: index.html, server.js, package.json, public/, lib/, scripts/.
 package.json must be included because the JavaScript uses ES modules.
 
 
@@ -482,3 +482,13 @@ only and disables fallback (see README.md). A failed import preserves the old
 snapshot. All three areas must succeed before a replacement is written.
 No restart is needed after import; refresh the map. Do not overwrite the other
 live JSON files or photos when refreshing store data. Back up stores.json too.
+
+
+OCTOBER 2026 FEATURE UPDATE
+Deploy the lib/ directory alongside server.js and public/. Weather requests use
+outbound HTTPS to api.open-meteo.com: BOM ACCESS-G with a labelled Open-Meteo
+forecast fallback. The service caches only valid current-day Brisbane data.
+Report photos and required resolution-proof photos use the existing DATA_DIR
+photos folder and upload limits. reports.json keeps the proof/reopen history.
+Do not replace live accounts/reports/photos with local copies. Restart the Node
+service after deploying code; existing records need no manual migration.

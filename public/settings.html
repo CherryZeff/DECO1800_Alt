@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="./style.css" />
     <script type="module" src="./js/settings.js"></script>
     <script src="./js/theme.js"></script>
+    <script type="module" src="./js/quick-search.js"></script>
   </head>
   <body class="settings-page">
     <!-- The same simple header and navigation appear on every page. -->
@@ -127,15 +128,25 @@
             <input name="hideIssues" type="checkbox" />
             <span>Hide facilities with unresolved reports</span>
           </label>
+          <h2 class="spaced-heading">Quick search</h2>
+          <label class="check-row"
+            ><input type="checkbox" name="quickOpenOnly" checked /><span
+              >Only find facilities open now</span
+            ></label
+          >
+          <p class="fine-print">
+            Uses recorded hours in Brisbane time. Unknown hours are excluded when
+            enabled. Hold the navigation shortcut for 5 seconds to switch type.
+          </p>
           <h2 class="spaced-heading">Route preferences</h2>
           <label class="check-row">
             <input name="allowFerries" type="checkbox" />
             <span>Allow ferries</span>
           </label>
           <p class="fine-print">
-            Allow ferry crossings in planned routes and toilet searches. Off by default.
-            Bus and train routing is not available. Check ferry service times; estimates
-            exclude waiting time.
+            Allow ferry crossings in planned routes and toilet searches. Off by
+            default. Bus and train routing is not available. Check ferry service
+            times; estimates exclude waiting time.
           </p>
           <p class="form-error" role="alert"></p>
           <button class="primary full" type="submit">

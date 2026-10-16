@@ -1817,3 +1817,94 @@ textarea {
 [data-theme='dark'] .mode-arrow[data-mode='water'] {
   color: #171c18;
 }
+
+/* Quick-search modes, hold feedback and report proof. */
+.toilet-shortcut {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.toilet-shortcut[data-type='water'] .toilet-circle {
+  background: var(--water);
+  color: #fff;
+}
+.toilet-shortcut[data-type='store'] .toilet-circle {
+  background: var(--store);
+  color: #171c18;
+}
+.quick-holding .toilet-circle {
+  animation: quick-hold 5s linear forwards;
+}
+.quick-changed .toilet-circle {
+  animation: quick-change 0.55s ease;
+}
+@keyframes quick-hold {
+  to {
+    box-shadow: 0 0 0 10px #ff6b3260;
+    transform: scale(1.12);
+  }
+}
+@keyframes quick-change {
+  50% {
+    transform: scale(1.25) rotate(12deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-holding .toilet-circle,
+  .quick-changed .toilet-circle {
+    animation: none;
+    outline: 4px solid var(--orange);
+  }
+}
+.weather-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 600;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+.weather-symbol {
+  font-size: 24px;
+}
+.quick-route #toilet-route-back {
+  top: 68px;
+}
+.quick-route:not(.run-active) .run-metrics {
+  top: 128px;
+}
+.run-active .run-metrics {
+  top: 68px;
+}
+.stop-marker.manual-stop,
+[data-theme='dark'] .stop-marker.manual-stop {
+  background: #7055c8;
+  color: white;
+  border: 2px solid white;
+}
+.proof-dialog h2 {
+  margin-block: 16px;
+}
+.proof-dialog input[type='file'] {
+  display: block;
+  width: 100%;
+  margin-block: 12px;
+}
+.timeline-item details {
+  margin-block: 12px;
+}
+
+.weather-badge { line-height: 1.2; }
+[data-theme='dark'] .toilet-shortcut[data-type='water'] .toilet-circle { color: #171c18; }

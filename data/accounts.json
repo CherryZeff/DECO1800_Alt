@@ -32,5 +32,23 @@
       "radius": 5000
     },
     "createdAt": "2026-10-15T02:54:19.800Z"
+  },
+  {
+    "id": "cbc8ec4a-fa77-427a-b536-d8ffc66f5e4f",
+    "name": "Jacob L",
+    "email": "jacobl@gmail.com",
+    "salt": "698fca22e8174b08ddbf093d64b7a81b",
+    "hash": "2d66e1ea8a5edaebd2e71d6015185073a25c5ada0f854e7b127d86e4a4c55a42e8c5da8646f3a84e60190ce86605649843289d1ec4284015765edeff45ad3d78",
+    "preferences": {
+      "accessible": false,
+      "unisex": true,
+      "babychange": false,
+      "bottle": false,
+      "hideIssues": false,
+      "allowFerries": false,
+      "radius": 5000,
+      "runningSpeed": 10
+    },
+    "createdAt": "2026-10-15T11:40:33.755Z"
   }
 ]

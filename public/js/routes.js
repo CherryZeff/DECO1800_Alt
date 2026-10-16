@@ -15,10 +15,20 @@ import { FacilityMap } from './map.js';
 import { readRoute, saveRoute } from './route-state.js';
 import { setupFacilityDetails } from './facility-details.js';
 
-import { loadAccount, getRadius, getPastRoutes, getRunningSpeed } from './storage.js';
+import {
+  loadAccount,
+  getRadius,
+  getPastRoutes,
+  getRunningSpeed,
+} from './storage.js';
 
-const toiletRoute = new URLSearchParams(location.search).has('nearest');
+const routeQuery = new URLSearchParams(location.search);
+const toiletRoute = routeQuery.has('nearest');
+const nearestType = ['water', 'store'].includes(routeQuery.get('nearest'))
+  ? routeQuery.get('nearest')
+  : 'toilet';
 let draft = readRoute();
+let showStart = draft.originLabel === 'Chosen map start';
 let facilities = [];
 let pickMode = null;
 let requestNumber = 0;
@@ -49,6 +59,7 @@ function clearResult() {
 }
 
 function renderDraft() {
+  find('#route-start-detail').hidden = !showStart;
   find('#route-origin').textContent = draft.originLabel;
   find('#route-origin-detail').textContent =
     draft.originLabel === 'Brisbane preview start'
@@ -92,6 +103,7 @@ async function useLocation() {
   try {
     draft.origin = await getLocation();
     draft.originLabel = 'Your location';
+    showStart = false;
     clearResult();
     facilityMap.setCenter(draft.origin, getRadius(), draft.originLabel);
     facilityMap.showRadius(!toiletRoute);
@@ -103,10 +115,15 @@ async function useLocation() {
 }
 
 function startPicking(mode) {
-  if (!facilityMap.map) return notify('The map is unavailable. Check your connection.');
+  if (!facilityMap.map)
+    return notify('The map is unavailable. Check your connection.');
   if (mode === 'stop' && draft.stops.length >= 10)
     return notify('A route can include up to 10 stops.');
   pickMode = mode;
+  if (mode === 'start') {
+    showStart = true;
+    renderDraft();
+  }
   find('#pick-message').textContent =
     mode === 'start'
       ? 'Tap the map to choose your start.'
@@ -318,12 +335,16 @@ find('#route-stops').onclick = (event) => {
 async function start() {
   await loadAccount();
   find('#toilet-route-back').hidden = !toiletRoute;
+  find('#toilet-route-back').href = `../index.html?quick=${nearestType}`;
+  find('#toilet-route-back').textContent = '← Back to nearby facilities';
+  document.body.classList.toggle('quick-route', toiletRoute);
   const query = new URLSearchParams(location.search);
   let saved;
   if (query.has('saved')) {
     saved = (await getPastRoutes()).find((row) => row.id === query.get('saved'));
     if (!saved) throw new Error('This saved route is unavailable for your account.');
     draft = saved.draft;
+    showStart = draft.originLabel === 'Chosen map start';
   }
   facilityMap.setCenter(draft.origin, getRadius(), draft.originLabel);
   facilityMap.showRadius(!toiletRoute);
@@ -335,12 +356,15 @@ async function start() {
     find('#route-message').textContent =
       `Points saved ${formatDate(saved.createdAt)} loaded. Tap Preview route when ready.`;
   }
-  if (query.has('nearest')) find('#nearest-note').hidden = false;
+  if (query.has('nearest')) {
+    find('#nearest-note').hidden = false;
+    find('#nearest-note').textContent = 'Quick-search stop selected.';
+  }
   if (query.has('build') && !saved) {
     history.replaceState(
       null,
       '',
-      toiletRoute ? './routes.html?nearest=1' : './routes.html',
+      toiletRoute ? `./routes.html?nearest=${nearestType}` : './routes.html',
     );
     if (draft.originLabel === 'Brisbane preview start') {
       try {

@@ -6,12 +6,19 @@ import { join } from 'node:path';
 
 const directory = mkdtempSync(join(tmpdir(), 'runstop-test-'));
 process.env.DATA_DIR = directory;
+const proofPhoto = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==';
 const originalFetch = globalThis.fetch;
 const externalCalls = [];
 let routingModes = ['walking'];
 let geocoderCalls = 0;
 globalThis.fetch = async (input, options) => {
   const url = new URL(input);
+  if (url.hostname === 'api.open-meteo.com') {
+    assert.equal(url.pathname, '/v1/bom');
+    assert.equal(url.searchParams.get('forecast_days'), '1');
+    const date = new Date(Date.now() + 10 * 3600000).toISOString().slice(0, 10);
+    return Response.json({ daily: { time: [date], temperature_2m_max: [29], weather_code: [2] }, daily_units: { temperature_2m_max: '°C' } });
+  }
   if (url.hostname === 'data.brisbane.qld.gov.au') {
     externalCalls.push(url);
     const water = url.pathname.includes('fountain');
@@ -397,7 +404,7 @@ test('reports can be created, inspected and resolved idempotently', async () => 
     `/api/reports?facility=${encodeURIComponent(facilityId)}`,
   );
   assert.equal(before.result.unresolved.length, 1);
-  const resolved = await request(`/api/reports/${reportId}/resolve`, 'POST', {}, true);
+  const resolved = await request(`/api/reports/${reportId}/resolve`, 'POST', { photos: [proofPhoto] }, true);
   assert.ok(resolved.result.report.resolvedAt);
   const again = await request(`/api/reports/${reportId}/resolve`, 'POST', {}, true);
   assert.equal(again.result.report.resolvedAt, resolved.result.report.resolvedAt);
@@ -594,7 +601,7 @@ test('browser contribution import is idempotent and reports persist on disk', as
   const resolved = await request(
     `/api/reports/${created.result.report.id}/resolve`,
     'POST',
-    {},
+    { photos: [proofPhoto] },
     true,
   );
   const saved = JSON.parse(readFileSync(join(directory, 'reports.json'))).find(
@@ -1143,4 +1150,44 @@ test('community stores require login, persist separately, reload and appear in s
   const search = await request('/api/search?q=Independent%20corner');
   const match = search.result.places.find(row => row.facilityId === facility.id);
   assert.equal(match.name, input.name);
+});
+
+
+test('report photos, mandatory resolution proof, and reopening by another account persist', async () => {
+  const input = { facilityId, category: 'Dirty', description: 'Photo report', photos: [proofPhoto] };
+  const created = await request('/api/reports', 'POST', input, true);
+  assert.equal(created.response.status, 201);
+  const id = created.result.report.id;
+  const originalPhoto = created.result.report.photos[0];
+  assert.ok(readFileSync(join(directory, 'photos', originalPhoto)).length);
+  assert.equal((await request(`/api/reports/${id}/resolve`, 'POST', {}, true)).response.status, 400);
+  const before = readdirSync(join(directory, 'photos')).length;
+  assert.equal((await request(`/api/reports/${id}/resolve`, 'POST', { photos: ['data:image/png;base64,aGVsbG8='] }, true)).response.status, 400);
+  assert.equal(readdirSync(join(directory, 'photos')).length, before);
+  const resolved = await request(`/api/reports/${id}/resolve`, 'POST', { photos: [proofPhoto] }, true);
+  assert.ok(resolved.result.report.resolvedAt);
+  assert.equal(resolved.result.report.resolutionHistory[0].photos.length, 1);
+  assert.equal((await request(`/api/reports/${id}/reopen`, 'POST', {})).response.status, 401);
+  const registered = await request('/api/register', 'POST', { name: 'Other runner', email: 'reopen@example.com', password: 'reopen-password' });
+  const otherCookie = registered.response.headers.get('set-cookie').split(';')[0];
+  const reopenedResponse = await originalFetch(`${base}/api/reports/${id}/reopen`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: otherCookie }, body: '{}' });
+  assert.equal(reopenedResponse.status, 200);
+  const reopened = (await reopenedResponse.json()).report;
+  assert.equal(reopened.resolvedAt, null);
+  assert.equal(reopened.resolutionHistory.at(-1).author, 'Other runner');
+  assert.ok(readFileSync(join(directory, 'photos', reopened.resolutionHistory[0].photos[0])).length);
+  assert.equal(JSON.parse(readFileSync(join(directory, 'reports.json'))).find(row => row.id === id).resolvedAt, null);
+  const counts = await request('/api/facility?id=' + encodeURIComponent(facilityId));
+  assert.ok(counts.result.facility.openReports > 0);
+});
+
+test('open-only preference defaults on and can be disabled; today weather is available to guests', async () => {
+  const me = await request('/api/me', 'GET', undefined, true);
+  assert.equal(me.result.user.preferences.quickOpenOnly, true);
+  const changed = await request('/api/preferences', 'PUT', { ...me.result.user.preferences, quickOpenOnly: false }, true);
+  assert.equal(changed.result.user.preferences.quickOpenOnly, false);
+  assert.equal((await request('/api/me', 'GET', undefined, true)).result.user.preferences.quickOpenOnly, false);
+  const weather = await request('/api/weather');
+  assert.equal(weather.result.weather.temperature, 29);
+  assert.equal(weather.result.weather.source, 'BOM ACCESS-G via Open-Meteo');
 });

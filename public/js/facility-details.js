@@ -13,15 +13,16 @@ import {
   getReports,
   requireAccount,
   addReport,
-  resolveReport,
   getAccount,
   getFavourites,
   setFavourite,
   markVisited,
 } from './storage.js';
+import { setupReportActions } from './report-actions.js';
 import { reportsHTML } from './reports.js';
 import { addRouteStop, readRoute, saveRoute } from './route-state.js';
-import { photoURL } from './photos.js';
+import { openingStatus } from './facility-search.js';
+import { photoURL, readPhotos } from './photos.js';
 
 export function setupFacilityDetails(onReportsChanged, onAddStop) {
   let selectedFacility;
@@ -71,7 +72,7 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
       <div class="tag-list">${amenities}</div>
       ${amenities ? '' : '<p class="muted">No amenities confirmed in this record.</p>'}
       ${facility.type === 'toilet' ? `<dl class="toilet-details"><div><dt>Toilet types</dt><dd>${types.join(' · ') || 'Not recorded'}</dd></div><div><dt>Showers</dt><dd>${toilet.shower === true ? 'Yes' : toilet.shower === false ? 'No' : 'Not recorded'}</dd></div></dl>` : ''}
-      <h3>Opening hours</h3><p>${escapeHTML(facility.hours)}</p>
+      <h3>Opening hours</h3><p>${escapeHTML(facility.hours)}</p><p class="fine-print">${{ open: 'Open now (recorded hours)', closed: 'Closed now (recorded hours)', unknown: 'Opening status unknown' }[openingStatus(facility.hours)]} · Brisbane time</p>
       ${facility.restrictions?.length ? `<p class="notice">${facility.restrictions.map(escapeHTML).join(' · ')}</p>` : ''}
       <p class="detail-description">${escapeHTML(facility.description)}</p>
       <div class="facility-photos">${(facility.photos || [])
@@ -184,6 +185,7 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
       selectedFacility,
       form.get('category'),
       form.get('description').trim(),
+      await readPhotos(find('#report-photos')),
     );
     find('#report-dialog').close();
     await onReportsChanged();
@@ -191,21 +193,14 @@ export function setupFacilityDetails(onReportsChanged, onAddStop) {
     notify('Report saved and shared.');
   });
 
-  find('#facility-detail').addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-resolve]');
-    if (!button || !requireAccount(returnPage)) return;
-    try {
-      button.disabled = true;
-      await resolveReport(button.dataset.resolve);
+  setupReportActions(
+    find('#facility-detail'),
+    async () => {
       await onReportsChanged();
       await renderReports();
-      notify('Problem marked as resolved.');
-    } catch (error) {
-      notify(error.message);
-    } finally {
-      button.disabled = false;
-    }
-  });
+    },
+    returnPage,
+  );
 
   return { open };
 }

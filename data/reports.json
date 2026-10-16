@@ -58,5 +58,35 @@
     "createdAt": "2026-10-14T12:17:26.319Z",
     "resolvedAt": null,
     "resolvedBy": null
+  },
+  {
+    "id": "0341eac3-6a2d-4f25-8141-76344ca5acd1",
+    "facilityId": "community:07e44db7-f500-4077-b105-11993b89202c",
+    "facilityName": "Soccer Court",
+    "facilityType": "toilet",
+    "lat": -27.49773207371014,
+    "lng": 153.01503539085388,
+    "category": "Dirty",
+    "description": "esksjhvfnh",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-15T12:04:25.159Z",
+    "resolvedAt": null,
+    "resolvedBy": null
+  },
+  {
+    "id": "5533a0c8-dc3b-438c-ad01-da471f578356",
+    "facilityId": "water:156",
+    "facilityName": "ORLEIGH PARK",
+    "facilityType": "water",
+    "lat": -27.48991254160644,
+    "lng": 153.00118091710252,
+    "category": "Broken",
+    "description": "jdkjsf",
+    "author": "Elver Gon",
+    "userId": "f462e6e9-a391-4d51-910d-2c5c6b7dcac0",
+    "createdAt": "2026-10-15T12:17:03.352Z",
+    "resolvedAt": null,
+    "resolvedBy": null
   }
 ]

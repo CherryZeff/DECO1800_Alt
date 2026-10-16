@@ -19,6 +19,12 @@ import {
   getPreferences,
   getRunningSpeed,
 } from './storage.js';
+import {
+  openingStatus,
+  parseFacilitySearch,
+  matchesFacilitySearch,
+} from './facility-search.js';
+import { quickType } from './quick-search.js';
 import { apiRequest } from './api.js';
 import { getFacilities, previewWalkingRoute } from './services.js';
 import { FacilityMap } from './map.js';
@@ -41,6 +47,9 @@ const state = {
 };
 let requestNumber = 0;
 let nearestMode = false;
+let nearestType = 'toilet';
+let searchFilters = null;
+const typeLabels = { toilet: 'toilets', water: 'water fountains', store: 'stores' };
 let nearestRequest = 0;
 let previewRequest = 0;
 let toiletChoices = [];
@@ -74,12 +83,25 @@ function matchesPreferences(facility) {
   return keys.every((key) => !preferences[key] || facility.amenities.includes(key));
 }
 
+function mustBeOpen() {
+  return searchFilters
+    ? searchFilters.open
+    : getPreferences().quickOpenOnly !== false;
+}
 function matchingFacilities() {
   return state.facilities
     .filter((facility) => {
       const matchesType = nearestMode
-        ? facility.type === 'toilet'
+        ? facility.type === nearestType
         : state.filter === 'all' || state.filter === facility.type;
+      if (nearestMode && mustBeOpen() && openingStatus(facility.hours) !== 'open')
+        return false;
+      if (
+        nearestMode &&
+        searchFilters &&
+        !matchesFacilitySearch(facility, searchFilters)
+      )
+        return false;
       return matchesType && matchesPreferences(facility);
     })
     .sort(
@@ -117,17 +139,23 @@ function chooseFacility(facility) {
     ],
     roundTrip: false,
   });
-  location.href = pageURL('routes.html?build=1&nearest=1&autostart=1');
+  location.href = pageURL(`routes.html?build=1&nearest=${nearestType}&autostart=1`);
 }
 
 function renderFacilities() {
   const facilities = visibleFacilities();
   find('#facility-count').textContent = nearestMode
     ? findingToilets
-      ? `Finding reachable toilets… ${facilities.length} found`
-      : `${facilities.length} reachable toilets within ${state.radius / 1000} km`
+      ? `Finding reachable ${typeLabels[nearestType]}… ${facilities.length} found`
+      : `${facilities.length} reachable ${typeLabels[nearestType]} within ${state.radius / 1000} km`
     : `${facilities.length} nearby stops`;
   const warnings = [...state.warnings];
+  if (nearestMode && !findingToilets && !facilities.length)
+    warnings.push(
+      mustBeOpen()
+        ? 'No reachable matches with confirmed opening hours. Try a larger radius or disable Only find facilities open now in Settings.'
+        : 'No reachable matches. Try a larger radius or different preferences.',
+    );
   if (!nearestMode && state.filter === 'store' && !state.storesAvailable) {
     warnings.push('Store locations have not been imported yet.');
   }
@@ -153,7 +181,7 @@ async function loadToiletPreviews(facilities) {
       if (!nearestMode || current !== previewRequest) return;
       if (error.status === 422) continue; // No pedestrian path: try the next toilet.
       state.warnings.push(
-        'Route service unavailable. Some toilets could not be checked. Retry to continue.',
+        'Route service unavailable. Some facilities could not be checked. Retry to continue.',
       );
       break;
     }
@@ -195,7 +223,14 @@ async function loadFacilities() {
     state.facilities = result.facilities;
     state.storesAvailable = result.storesAvailable !== false;
     state.warnings = result.warnings;
-    if (nearestMode && state.warnings.some((warning) => /toilet/i.test(warning)))
+    if (
+      nearestMode &&
+      state.warnings.some((warning) =>
+        warning
+          .toLowerCase()
+          .includes(nearestType === 'water' ? 'fountain' : nearestType),
+      )
+    )
       state.facilities = [];
     if (nearestMode) await loadToiletPreviews(matchingFacilities());
     else renderFacilities();
@@ -244,8 +279,10 @@ async function locate() {
   }
 }
 
-async function nearestToilet() {
-  if (nearestMode) return;
+async function nearestToilet(type = quickType(), filters = null) {
+  if (nearestMode) leaveNearestMode();
+  nearestType = ['toilet', 'water', 'store'].includes(type) ? type : 'toilet';
+  searchFilters = filters;
   previousArea = { center: state.center, centerLabel: state.centerLabel };
   nearestMode = true;
   toiletChoices = [];
@@ -254,7 +291,7 @@ async function nearestToilet() {
   requestNumber++; // Ignore an older area request that finishes after this switch.
   document.body.classList.add('nearest-mode');
   find('#nearest-back').hidden = false;
-  find('#map-mode').textContent = 'Closest toilets';
+  find('#map-mode').textContent = `Closest ${typeLabels[nearestType]}`;
   find('#nearest-toilet').disabled = true;
   state.facilities = [];
   state.warnings = [];
@@ -270,8 +307,8 @@ async function nearestToilet() {
     const toilets = visibleFacilities();
     notify(
       toilets.length
-        ? 'Tap a toilet pin or bubble to start your route.'
-        : 'No matching toilets available in this radius. Go back to change your radius or retry.',
+        ? 'Tap a facility pin or bubble to start your route.'
+        : 'No matching facilities available in this radius. Go back to change your radius or retry.',
     );
   } catch (error) {
     if (current !== nearestRequest) return;
@@ -300,6 +337,7 @@ function leaveNearestMode() {
   renderFacilities();
   const url = new URL(location.href);
   url.searchParams.delete('toilets');
+  url.searchParams.delete('quick');
   history.replaceState(null, '', url);
   loadFacilities();
 }
@@ -452,7 +490,9 @@ handleForm(find('#add-form'), async (form) => {
 // Page-specific controls. Normal navigation uses links in the HTML.
 find('#add-form [name=type]').onchange = updateAmenities;
 find('#add-facility').onclick = showAddForm;
-find('#nearest-toilet').onclick = nearestToilet;
+find('#nearest-toilet').addEventListener('quick-search', (event) =>
+  nearestToilet(event.detail),
+);
 find('#locate').onclick = () => locate().catch((error) => notify(error.message));
 find('#retry-data').onclick = loadFacilities;
 find('#nearest-back').onclick = leaveNearestMode;
@@ -470,6 +510,12 @@ find('#facility-photos').onchange = (event) => {
 let placeResults = [];
 find('#place-search').onsubmit = async (event) => {
   event.preventDefault();
+  const filters = parseFacilitySearch(find('#place-query').value.trim());
+  if (filters) {
+    find('#place-results').hidden = true;
+    await nearestToilet(filters.type, filters);
+    return;
+  }
   const button = find('#place-search [type=submit]');
   if (button.disabled) return;
   button.disabled = true;
@@ -537,8 +583,8 @@ async function start() {
     Math.abs(lng) <= 180;
   if (hasMapLink) updateCenter({ lat, lng }, 'Selected map area');
   else updateCenter(state.center, state.centerLabel);
-  if (query.has('toilets')) {
-    await nearestToilet();
+  if (query.has('toilets') || query.has('quick')) {
+    await nearestToilet(query.get('quick') || 'toilet');
     return;
   }
   await loadFacilities();

@@ -57,7 +57,8 @@ export function getRadius() {
 }
 
 export async function saveRadius(radius) {
-  if (currentAccount) await savePreferences({ ...currentAccount.preferences, radius });
+  if (currentAccount)
+    await savePreferences({ ...currentAccount.preferences, radius });
   else localStorage.setItem('parkpal.radius', String(radius));
 }
 
@@ -76,18 +77,22 @@ export async function getReports(facilityId) {
   ];
 }
 
-export async function addReport(facility, category, description) {
+export async function addReport(facility, category, description, photos = []) {
   return (
     await apiRequest('reports', 'POST', {
       facilityId: facility.id,
+      photos,
       category,
       description,
     })
   ).report;
 }
 
-export async function resolveReport(id) {
-  await apiRequest(`reports/${encodeURIComponent(id)}/resolve`, 'POST', {});
+export async function resolveReport(id, photos) {
+  await apiRequest(`reports/${encodeURIComponent(id)}/resolve`, 'POST', { photos });
+}
+export async function reopenReport(id) {
+  await apiRequest(`reports/${encodeURIComponent(id)}/reopen`, 'POST', {});
 }
 
 export function getPreferences() {

@@ -36,6 +36,7 @@
     <link rel="stylesheet" href="./public/style.css" />
     <script type="module" src="./public/js/index.js"></script>
     <script src="./public/js/theme.js"></script>
+    <script type="module" src="./public/js/quick-search.js"></script>
   </head>
   <body class="index-page">
     <!-- The same simple header and navigation appear on every page. -->
@@ -115,7 +116,9 @@
         type="button"
         aria-label="Show convenience stores"
       >
-        <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-store"></use></svg>
+        <svg class="icon" aria-hidden="true">
+          <use href="./public/icons.svg#i-store"></use>
+        </svg>
         <span aria-hidden="true">&lt;</span>
       </button>
       <button
@@ -124,7 +127,9 @@
         type="button"
         aria-label="Show toilets"
       >
-        <svg class="icon" aria-hidden="true"><use href="./public/icons.svg#i-toilet"></use></svg>
+        <svg class="icon" aria-hidden="true">
+          <use href="./public/icons.svg#i-toilet"></use>
+        </svg>
         <span aria-hidden="true">&gt;</span>
       </button>
       <section class="map-status" aria-label="Map information">
@@ -133,9 +138,7 @@
           <a href="./public/settings.html#radius-settings" id="radius-link"
             >Radius: 5 km ↗</a
           >
-          <button id="retry-data" class="text-button" type="button">
-            Refresh
-          </button>
+          <button id="retry-data" class="text-button" type="button">Refresh</button>
         </div>
         <p id="data-warning" role="status" hidden></p>
       </section>
@@ -211,6 +214,14 @@
             placeholder="Let other runners know what to expect."
           ></textarea>
         </label>
+        <label
+          >Photos (optional)<input
+            id="report-photos"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+        /></label>
+        <p class="fine-print">Up to 3 photos, 2 MB each. JPEG, PNG or WebP.</p>
         <p class="form-error" role="alert"></p>
         <button class="primary full" type="submit">Submit report</button>
       </form>
@@ -246,11 +257,7 @@
           >
         </label>
         <div class="button-row">
-          <button
-            id="add-current-location"
-            type="button"
-            class="secondary small"
-          >
+          <button id="add-current-location" type="button" class="secondary small">
             <svg class="icon"><use href="./public/icons.svg#i-target" /></svg>
             My location
           </button>
@@ -298,11 +305,7 @@
         <label>
           Opening hours
           <span class="optional">optional</span>
-          <input
-            name="hours"
-            placeholder="e.g. Open 24 hours"
-            maxlength="160"
-          />
+          <input name="hours" placeholder="e.g. Open 24 hours" maxlength="160" />
         </label>
         <label>
           Description
@@ -326,8 +329,8 @@
           aria-describedby="photo-help"
         />
         <p id="photo-help" class="fine-print">
-          Up to 3 photos, 2 MB each. JPEG, PNG or WebP. Photos are shared with
-          the facility.
+          Up to 3 photos, 2 MB each. JPEG, PNG or WebP. Photos are shared with the
+          facility.
         </p>
         <div id="photo-preview" class="photo-preview"></div>
         <p class="fine-print">Appears immediately on the shared map.</p>

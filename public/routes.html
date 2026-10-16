@@ -36,6 +36,8 @@
     <link rel="stylesheet" href="./style.css" />
     <script type="module" src="./js/routes.js"></script>
     <script src="./js/theme.js"></script>
+    <script type="module" src="./js/quick-search.js"></script>
+    <script type="module" src="./js/weather.js"></script>
   </head>
   <body class="routes-page">
     <!-- The same simple header and navigation appear on every page. -->
@@ -57,7 +59,23 @@
           >← Back to toilets</a
         >
         <div id="map" aria-label="Interactive facility map"></div>
-        <div id="run-metrics" class="run-metrics" hidden aria-label="Route statistics">
+        <a
+          id="weather-badge"
+          class="weather-badge"
+          href="https://open-meteo.com/en/docs/bom-api"
+          target="_blank"
+          rel="noopener"
+          aria-label="Loading today’s Brisbane forecast"
+        >
+          <span class="weather-symbol" aria-hidden="true">☁</span
+          ><span class="weather-temperature" aria-hidden="true">—</span>
+        </a>
+        <div
+          id="run-metrics"
+          class="run-metrics"
+          hidden
+          aria-label="Route statistics"
+        >
           <div>
             <span id="run-time-label">Estimated time</span
             ><strong id="run-time">0 min</strong>
@@ -85,7 +103,7 @@
         <section id="route-panel" class="panel">
           <h1>Plan your run</h1>
           <p class="intro compact">Choose a start. Add stops. Go.</p>
-          <div class="route-start">
+          <div id="route-start-detail" class="route-start" hidden>
             <span class="live-dot"></span>
             <div>
               <strong id="route-origin">Brisbane preview start</strong>
@@ -99,21 +117,23 @@
               <svg class="icon"><use href="./icons.svg#i-target" /></svg>
               Use my location
             </button>
-            <button id="pick-start" class="secondary small">Choose start</button>
+            <button id="pick-start" class="secondary small">Select start</button>
           </div>
           <h2 class="spaced-heading">
             Your stops
             <span id="stop-count" class="count-badge">0</span>
           </h2>
-          <ol id="route-stops" class="route-stops"></ol>
-          <p id="route-empty" class="empty-state">Tap a facility or add a map pin.</p>
           <div class="button-row">
             <button id="pick-stop" class="secondary">
               <svg class="icon"><use href="./icons.svg#i-plus" /></svg>
-              Map stop
+              Map stops
             </button>
             <a href="../index.html" class="secondary">Find facilities</a>
           </div>
+          <ol id="route-stops" class="route-stops"></ol>
+          <p id="route-empty" class="empty-state">
+            Tap a facility or add a map pin.
+          </p>
           <label class="check-row">
             <input id="round-trip" type="checkbox" />
             <span>Finish back at the start</span>
@@ -129,6 +149,16 @@
           <p id="nearest-note" class="notice" hidden>Toilet stop selected.</p>
           <div id="route-result" hidden></div>
           <p id="run-summary" role="status"></p>
+          <p class="fine-print">
+            Today’s Brisbane maximum:
+            <span id="weather-source"
+              >BOM ACCESS-G via Open-Meteo, with general-forecast fallback</span
+            >.
+            <a href="https://open-meteo.com/" target="_blank" rel="noopener"
+              >Weather data</a
+            >
+            (CC BY 4.0). Not the official BOM city forecast.
+          </p>
           <p class="fine-print">
             Uses pedestrian paths, with ferries only when enabled. Follow local signs
             and crossings.
@@ -205,6 +235,14 @@
             placeholder="Let other runners know what to expect."
           ></textarea>
         </label>
+        <label
+          >Photos (optional)<input
+            id="report-photos"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+        /></label>
+        <p class="fine-print">Up to 3 photos, 2 MB each. JPEG, PNG or WebP.</p>
         <p class="form-error" role="alert"></p>
         <button class="primary full" type="submit">Submit report</button>
       </form>

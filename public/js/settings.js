@@ -18,7 +18,10 @@ find('#account-radius').oninput = radiusLabel;
 function speedLabel() {
   const speed = Number(find('#running-speed').value);
   find('#speed-value').textContent = `${speed} km/h`;
-  find('#running-speed').setAttribute('aria-valuetext', `${speed} kilometres per hour`);
+  find('#running-speed').setAttribute(
+    'aria-valuetext',
+    `${speed} kilometres per hour`,
+  );
 }
 find('#running-speed').oninput = speedLabel;
 handleForm(find('#speed-form'), async (form) => {
@@ -66,7 +69,10 @@ async function start() {
   document
     .querySelectorAll('#preferences-form input[type=checkbox]')
     .forEach((input) => {
-      input.checked = Boolean(preferences[input.name]);
+      input.checked =
+        input.name === 'quickOpenOnly'
+          ? preferences.quickOpenOnly !== false
+          : Boolean(preferences[input.name]);
     });
 }
 start().catch((error) => notify(error.message));

@@ -1,5 +1,6 @@
 // ParkPal's shared storage: serve the pages, write JSON, and store facility photos.
 import http from 'node:http';
+import { getWeather } from './lib/weather.js';
 import {
   readFileSync,
   writeFileSync,
@@ -125,6 +126,7 @@ function preferences(value = {}) {
       'allowFerries',
     ].map((key) => [key, value?.[key] === true]),
   );
+  result.quickOpenOnly = value.quickOpenOnly !== false;
   result.radius = value.radius === undefined ? 5000 : validRadius(value.radius);
   result.runningSpeed = value.runningSpeed === undefined ? 10 : value.runningSpeed;
   if (
@@ -151,6 +153,7 @@ function publicAccount(account) {
       radius: account.preferences?.radius || 5000,
       runningSpeed: account.preferences?.runningSpeed ?? 10,
       allowFerries: account.preferences?.allowFerries === true,
+      quickOpenOnly: account.preferences?.quickOpenOnly !== false,
     },
   };
 }
@@ -223,6 +226,21 @@ function preparePhotos(photos = []) {
   });
 }
 
+// Roll back only newly written images if saving their parent record fails.
+function saveWithPhotos(collection, rows, photos) {
+  const written = [];
+  try {
+    for (const photo of photos) {
+      writeFileSync(join(photosDir, photo.filename), photo.buffer, { flag: 'wx', mode: 0o600 });
+      written.push(photo.filename);
+    }
+    save(collection, rows);
+  } catch (error) {
+    for (const filename of written) unlinkSync(join(photosDir, filename));
+    throw error;
+  }
+}
+
 function existingImport(collection, input, user) {
   if (!input.clientId) return null;
   if (
@@ -282,7 +300,7 @@ export function normalize(row, type) {
   const amenities =
     type === 'toilet'
       ? ['accessible', 'unisex', 'babychange'].filter((key) => yes(row[key]))
-      : []; // Don't infer bottle filling or accessibility from ambiguous equipment names.
+      : (/\bdog\s*(bowl|bubbler|fountain)\b/i.test(row.item_description || '') ? ['dog'] : []); // Only explicit dog equipment; do not infer bottle filling or accessibility.
   return {
     id: `${type}:${type === 'toilet' ? row.facilityid : row.objectid}`,
     type,
@@ -650,6 +668,10 @@ async function api(req, res, url) {
     }
     return json(res, 200, { user: publicAccount(account) });
   }
+  if (path === '/api/weather' && req.method === 'GET') {
+    try { return json(res, 200, { weather: await getWeather() }); }
+    catch { fail('Today’s Brisbane forecast is unavailable. Please try again later.', 503); }
+  }
   if (path === '/api/search' && req.method === 'GET') {
     const query = clean(url.searchParams.get('q'), 120);
     if (query.length < 2) fail('Enter at least two characters to search.');
@@ -881,11 +903,12 @@ async function api(req, res, url) {
   }
   if (path === '/api/reports' && req.method === 'POST') {
     const user = requireUser(req),
-      input = await body(req);
+      input = await body(req, 9 * 1024 * 1024);
     const existing = existingImport('reports', input, user);
     if (existing) return json(res, 200, { report: existing });
     if (!problemTypes.includes(input.category)) fail('Select a problem category.');
     const facility = await findFacility(clean(input.facilityId));
+    const photos = preparePhotos(input.photos);
     const row = {
       id: randomUUID(),
       facilityId: facility.id,
@@ -898,26 +921,37 @@ async function api(req, res, url) {
       author: user.name,
       userId: user.id,
       createdAt: new Date().toISOString(),
+      photos: photos.map(photo => photo.filename),
+      resolutionHistory: [],
       resolvedAt: null,
       resolvedBy: null,
       ...(input.clientId ? { clientId: input.clientId } : {}),
     };
     const rows = read('reports');
     rows.push(row);
-    save('reports', rows);
+    saveWithPhotos('reports', rows, photos);
     return json(res, 201, { report: row });
   }
-  if (path.match(/^\/api\/reports\/[^/]+\/resolve$/) && req.method === 'POST') {
-    const user = requireUser(req),
-      id = path.split('/')[3];
-    const rows = read('reports'),
-      report = rows.find((row) => row.id === id);
+  if (path.match(/^\/api\/reports\/[^/]+\/(resolve|reopen)$/) && req.method === 'POST') {
+    const user = requireUser(req), input = await body(req, 9 * 1024 * 1024);
+    const id = path.split('/')[3], action = path.split('/')[4];
+    const rows = read('reports'), report = rows.find(row => row.id === id);
     if (!report) fail('Report not found.', 404);
-    if (!report.resolvedAt) {
-      report.resolvedAt = new Date().toISOString();
-      report.resolvedBy = user.name;
-      save('reports', rows);
-    }
+    if ((action === 'resolve' && report.resolvedAt) || (action === 'reopen' && !report.resolvedAt))
+      return json(res, 200, { report });
+    const photos = action === 'resolve' ? preparePhotos(input.photos) : [];
+    if (action === 'resolve' && !photos.length) fail('Add a photo showing that the problem is resolved.');
+    const when = new Date().toISOString();
+    report.resolutionHistory ||= [];
+    report.resolutionHistory.push({
+      action, createdAt: when, userId: user.id, author: user.name,
+      photos: photos.map(photo => photo.filename),
+    });
+    report.resolvedAt = action === 'resolve' ? when : null;
+    report.resolvedBy = action === 'resolve' ? user.name : null;
+    report.resolvedById = action === 'resolve' ? user.id : null;
+    report.resolutionPhotos = photos.map(photo => photo.filename);
+    saveWithPhotos('reports', rows, photos);
     return json(res, 200, { report });
   }
   if (path === '/api/route' && req.method === 'POST') {
@@ -1023,6 +1057,10 @@ const publicFiles = [
   'js/map.js',
   'js/route-state.js',
   'js/reports.js',
+  'js/facility-search.js',
+  'js/quick-search.js',
+  'js/report-actions.js',
+  'js/weather.js',
   'js/facility-details.js',
   'js/index.js',
   'js/routes.js',
